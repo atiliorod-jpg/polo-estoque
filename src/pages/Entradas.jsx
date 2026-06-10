@@ -138,11 +138,22 @@ export default function Entradas() {
             {produtosVisiveis.length === 0 && (
               <div className="text-center text-gray-400 py-6 text-sm">Nenhum produto encontrado.</div>
             )}
-            {produtosVisiveis.map((p, i, arr) => (
+            {produtosVisiveis.map((p, i, arr) => {
+              const diasVal = armazenamento === 'congelado' ? (p.valCongelado || 0) : (p.valResfriado || 0);
+              const temQtd = parseFloat(qtds[p.id]) > 0;
+              return (
               <div key={p.id} className={`flex items-center px-4 py-3 gap-3 ${i < arr.length - 1 ? 'border-b border-gray-100' : ''}`}>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm text-gray-800 truncate">{p.nome}</div>
                   <div className="text-xs text-gray-400">{p.unidade}</div>
+                  {temQtd && diasVal > 0 && (
+                    <div className="text-[10px] font-semibold text-polo-navy bg-polo-beige rounded px-1.5 py-0.5 mt-1 inline-block">
+                      🏷️ Etiqueta: fab. {fmtData(data)} • venc. {fmtData(addDias(data, diasVal))}
+                    </div>
+                  )}
+                  {temQtd && diasVal === 0 && (
+                    <div className="text-[10px] text-gray-400 mt-0.5">sem prazo de validade cadastrado (Config → produto)</div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setQtd(p.id, Math.max(0, (parseFloat(qtds[p.id]) || 0) - 1).toString())}
@@ -158,7 +169,7 @@ export default function Entradas() {
                     className="w-8 h-8 rounded-full bg-polo-navy text-polo-gold font-bold text-lg flex items-center justify-center">+</button>
                 </div>
               </div>
-            ))}
+            );})}
           </div>
 
           {/* Obs + Salvar */}

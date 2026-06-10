@@ -5,7 +5,8 @@ import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
 import { CATEGORIAS } from '../data/produtos';
 import { hoje, fmtData, fmtHora, fmtNum } from '../utils/formatters';
-import { validarDataRegistro, validadesPorProduto, diasAte } from '../utils/datas';
+import { validarDataRegistro, diasAte } from '../utils/datas';
+import { calcLotes } from '../utils/lotes';
 
 const DESTINOS = [
   { value: 'polo_central', label: '🏠 Polo Central' },
@@ -13,7 +14,7 @@ const DESTINOS = [
 ];
 
 export default function Saidas() {
-  const { produtos, addSaida, saidas, removeSaida, calcEstoque, entradas, prefs, setPref } = useApp();
+  const { produtos, addSaida, saidas, removeSaida, calcEstoque, entradas, desperdicio, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
@@ -26,7 +27,7 @@ export default function Saidas() {
 
   const produtosAtivos = produtos.filter(p => p.ativo);
   const estoque = calcEstoque();
-  const validades = validadesPorProduto(entradas);
+  const lotes = calcLotes(entradas, saidas, desperdicio);
   const buscando = busca.trim().length > 0;
   const produtosVisiveis = buscando
     ? produtosAtivos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()))
@@ -156,15 +157,22 @@ export default function Saidas() {
                   <div className="text-xs text-gray-400">
                     Em estoque: <span className={`font-semibold ${(estoque[p.id] ?? 0) <= 0 ? 'text-red-500' : 'text-gray-600'}`}>{fmtNum(estoque[p.id] ?? 0)} {p.unidade}</span>
                   </div>
-                  {validades[p.id] && (estoque[p.id] ?? 0) > 0 && (() => {
-                    const dias = diasAte(validades[p.id]);
-                    if (dias > 7) return null;
-                    return (
-                      <div className={`text-[10px] font-semibold ${dias < 0 ? 'text-red-600' : dias <= 3 ? 'text-orange-600' : 'text-amber-600'}`}>
-                        ⏰ {dias < 0 ? `lote VENCIDO em ${fmtData(validades[p.id])}` : `usar 1º — lote vence ${fmtData(validades[p.id])}`}
-                      </div>
-                    );
-                  })()}
+                  {(lotes[p.id] || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {lotes[p.id].map((l, i) => {
+                        const dias = diasAte(l.validade);
+                        const cor = dias < 0 ? 'bg-red-100 text-red-700 border-red-300'
+                          : dias <= 3 ? 'bg-orange-100 text-orange-700 border-orange-300'
+                          : 'bg-gray-50 text-gray-500 border-gray-200';
+                        return (
+                          <span key={i} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${cor}`}>
+                            {fmtNum(l.restante)} {p.unidade} • {dias < 0 ? 'VENCIDO ' : 'vence '}{fmtData(l.validade)}
+                            {i === 0 && lotes[p.id].length > 1 && ' ← pegar deste'}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setQtd(p.id, Math.max(0, (parseFloat(qtds[p.id]) || 0) - 1).toString())}

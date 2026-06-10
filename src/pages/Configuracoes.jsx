@@ -7,11 +7,24 @@ import { useUI } from '../store/UIContext';
 import { CATEGORIAS } from '../data/produtos';
 import { calcSugestoesMinMax, DIAS_MIN, DIAS_MAX } from '../utils/sugestoes';
 
+// Campos numéricos ficam como texto enquanto edita (apagar/limpar funciona);
+// a conversão para número acontece só no salvar.
+const numVazio = (v) => (v === 0 || v == null ? '' : String(v));
+
 function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
-  const [form, setForm] = useState(produto || {
-    nome: '', categoria: CATEGORIAS[0], unidade: 'kg', estoqueInicial: 0, min: 0, max: 0,
-    valCongelado: 0, valResfriado: 0, ativo: true,
-  });
+  const [form, setForm] = useState(() => produto
+    ? {
+        ...produto,
+        estoqueInicial: numVazio(produto.estoqueInicial),
+        min: numVazio(produto.min),
+        max: numVazio(produto.max),
+        valCongelado: numVazio(produto.valCongelado),
+        valResfriado: numVazio(produto.valResfriado),
+      }
+    : {
+        nome: '', categoria: CATEGORIAS[0], unidade: 'kg',
+        estoqueInicial: '', min: '', max: '', valCongelado: '', valResfriado: '', ativo: true,
+      });
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
   return (
@@ -54,7 +67,8 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
           <label className="block text-xs font-semibold text-gray-600 mb-1">
             Estoque Inicial (ponto de partida)
           </label>
-          <input type="number" min="0" step="0.5" value={form.estoqueInicial ?? 0} onChange={e => set('estoqueInicial', parseFloat(e.target.value) || 0)}
+          <input type="number" min="0" step="0.5" value={form.estoqueInicial} onChange={e => set('estoqueInicial', e.target.value)}
+            placeholder="0"
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
           <p className="text-xs text-gray-400 mt-1">Quanto há hoje. A partir daqui, entradas/saídas/perdas calculam sozinhas.</p>
         </div>
@@ -64,14 +78,16 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
             <label className="block text-xs font-semibold text-gray-600 mb-1">
               Estoque Mínimo (3 dias)
             </label>
-            <input type="number" min="0" step="0.5" value={form.min} onChange={e => set('min', parseFloat(e.target.value) || 0)}
+            <input type="number" min="0" step="0.5" value={form.min} onChange={e => set('min', e.target.value)}
+              placeholder="0"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">
               Estoque Máximo (6 dias)
             </label>
-            <input type="number" min="0" step="0.5" value={form.max} onChange={e => set('max', parseFloat(e.target.value) || 0)}
+            <input type="number" min="0" step="0.5" value={form.max} onChange={e => set('max', e.target.value)}
+              placeholder="0"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>
@@ -83,7 +99,7 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
               💡 Pelo consumo dos últimos {sugestao.dias} dias:{' '}
               <strong>mín {sugestao.min} / máx {sugestao.max}</strong>
             </p>
-            <button onClick={() => setForm(prev => ({ ...prev, min: sugestao.min, max: sugestao.max }))}
+            <button onClick={() => setForm(prev => ({ ...prev, min: String(sugestao.min), max: String(sugestao.max) }))}
               className="text-xs font-bold text-polo-navy border border-polo-navy/30 px-2.5 py-1 rounded-lg flex-shrink-0 ml-2">
               Aplicar
             </button>
@@ -95,16 +111,18 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
             <label className="block text-xs font-semibold text-gray-600 mb-1">
               ❄️ Validade congelado (dias)
             </label>
-            <input type="number" min="0" value={form.valCongelado ?? 0}
-              onChange={e => set('valCongelado', parseInt(e.target.value) || 0)}
+            <input type="number" min="0" value={form.valCongelado}
+              onChange={e => set('valCongelado', e.target.value)}
+              placeholder="0 = sem controle"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">
               🧊 Validade resfriado (dias)
             </label>
-            <input type="number" min="0" value={form.valResfriado ?? 0}
-              onChange={e => set('valResfriado', parseInt(e.target.value) || 0)}
+            <input type="number" min="0" value={form.valResfriado}
+              onChange={e => set('valResfriado', e.target.value)}
+              placeholder="0 = sem controle"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>
@@ -123,7 +141,14 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
             className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">
             Cancelar
           </button>
-          <button onClick={() => onSalvar(form)} disabled={!form.nome.trim()}
+          <button onClick={() => onSalvar({
+              ...form,
+              estoqueInicial: parseFloat(form.estoqueInicial) || 0,
+              min: parseFloat(form.min) || 0,
+              max: parseFloat(form.max) || 0,
+              valCongelado: parseInt(form.valCongelado) || 0,
+              valResfriado: parseInt(form.valResfriado) || 0,
+            })} disabled={!form.nome.trim()}
             className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl disabled:opacity-40">
             Salvar
           </button>
@@ -174,7 +199,19 @@ export default function Configuracoes() {
   const [criando, setCriando] = useState(false);
   const [busca, setBusca] = useState('');
   const [novaPessoa, setNovaPessoa] = useState('');
+  const [secao, setSecao] = useState('produtos'); // produtos | acessos | sistema
+  const [resetPin, setResetPin] = useState(null); // usuário em redefinição de PIN
+  const [pinNovo, setPinNovo] = useState('');
   const fileRef = useRef(null);
+
+  const confirmarResetPin = () => {
+    if (!/^\d{4,6}$/.test(pinNovo)) { toast('PIN deve ter de 4 a 6 números.', 'aviso'); return; }
+    setUsuarios(usuarios.map(u => u.id === resetPin.id ? { ...u, pin: pinNovo } : u));
+    logAudit('redefiniu PIN', resetPin.nome);
+    toast(`PIN de ${resetPin.nome} redefinido.`, 'sucesso');
+    setResetPin(null);
+    setPinNovo('');
+  };
 
   const handleAddPessoa = () => {
     const n = novaPessoa.trim();
@@ -252,13 +289,25 @@ export default function Configuracoes() {
   return (
     <Layout
       title="Configurações"
-      actions={
+      actions={secao === 'produtos' ? (
         <button onClick={() => setCriando(true)}
           className="bg-polo-gold text-polo-navy text-xs font-bold px-3 py-1.5 rounded-lg">
           + Produto
         </button>
-      }
+      ) : null}
     >
+      {/* Seções */}
+      <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
+        {[['produtos', '📦 Produtos'], ['acessos', '👤 Equipe & Acessos'], ['sistema', '🛠️ Sistema']].map(([v, l]) => (
+          <button key={v} onClick={() => setSecao(v)}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors
+              ${secao === v ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {secao === 'produtos' && <>
       {/* Busca */}
       <div className="mb-3">
         <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
@@ -309,7 +358,9 @@ export default function Configuracoes() {
           <div className="text-center text-gray-400 py-8 text-sm">Nenhum produto encontrado.</div>
         )}
       </div>
+      </>}
 
+      {secao === 'sistema' && <>
       {/* Ajuste automático de mín/máx */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
         <div className="flex items-center gap-3">
@@ -341,6 +392,9 @@ export default function Configuracoes() {
         <span className="text-polo-navy text-lg">›</span>
       </Link>
 
+      </>}
+
+      {secao === 'acessos' && <>
       {/* Equipe */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
         <div>
@@ -403,22 +457,29 @@ export default function Configuracoes() {
                 </span>
                 {u.id === sessao?.usuarioId && <span className="text-[10px] text-green-600 font-semibold ml-1.5">• você</span>}
               </div>
-              {u.id !== sessao?.usuarioId && (
-                <button onClick={async () => {
-                    const ok = await confirm({ titulo: 'Remover usuário', mensagem: `Remover o acesso de ${u.nome}?`, perigo: true, confirmar: 'Remover' });
-                    if (ok) {
-                      setUsuarios(usuarios.filter(x => x.id !== u.id));
-                      logAudit('removeu usuário', u.nome);
-                      toast('Usuário removido.', 'sucesso');
-                    }
-                  }}
-                  className="text-red-400 text-xs font-semibold">Remover</button>
-              )}
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setResetPin(u); setPinNovo(''); }}
+                  className="text-xs font-semibold text-polo-navy bg-polo-beige px-2 py-1 rounded-lg">🔑 PIN</button>
+                {u.id !== sessao?.usuarioId && (
+                  <button onClick={async () => {
+                      const ok = await confirm({ titulo: 'Remover usuário', mensagem: `Remover o acesso de ${u.nome}?`, perigo: true, confirmar: 'Remover' });
+                      if (ok) {
+                        setUsuarios(usuarios.filter(x => x.id !== u.id));
+                        logAudit('removeu usuário', u.nome);
+                        toast('Usuário removido.', 'sucesso');
+                      }
+                    }}
+                    className="text-red-400 text-xs font-semibold">Remover</button>
+                )}
+              </div>
             </div>
           ))}
         </div>
       </div>
 
+      </>}
+
+      {secao === 'sistema' && <>
       {/* Destinos de apara */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
         <div>
@@ -494,6 +555,27 @@ export default function Configuracoes() {
           Apagar todos os registros
         </button>
       </div>
+      </>}
+
+      {/* Modal de redefinição de PIN */}
+      {resetPin && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="font-bold text-lg text-polo-navy">Redefinir PIN — {resetPin.nome}</h2>
+            <input type="password" inputMode="numeric" value={pinNovo}
+              onChange={e => setPinNovo(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={e => { if (e.key === 'Enter') confirmarResetPin(); }}
+              placeholder="Novo PIN (4 a 6 números)" autoFocus
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-lg tracking-[0.4em]" />
+            <div className="flex gap-3">
+              <button onClick={() => { setResetPin(null); setPinNovo(''); }}
+                className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">Cancelar</button>
+              <button onClick={confirmarResetPin}
+                className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl">Salvar PIN</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {(editando || criando) && (
         <ModalProduto

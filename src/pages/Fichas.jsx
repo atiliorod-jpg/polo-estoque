@@ -164,8 +164,9 @@ export default function Fichas() {
                   )}
                 </label>
                 <input type="number" min="0" max="90" step="0.5"
-                  value={correcaoManual !== '' ? correcaoManual : correcaoPct.toFixed(1)}
+                  value={correcaoManual}
                   onChange={e => setCorrecaoManual(e.target.value)}
+                  placeholder={correcaoPct.toFixed(1)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
