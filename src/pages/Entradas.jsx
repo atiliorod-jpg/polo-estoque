@@ -1,0 +1,189 @@
+import { useState } from 'react';
+import Layout from '../components/Layout';
+import { useApp } from '../store/AppContext';
+import { useUI } from '../store/UIContext';
+import ResponsavelSelect from '../components/ResponsavelSelect';
+import { CATEGORIAS } from '../data/produtos';
+import { hoje, fmtData, fmtHora } from '../utils/formatters';
+
+export default function Entradas() {
+  const { produtos, addEntrada, entradas, removeEntrada, prefs, setPref } = useApp();
+  const { toast, confirm } = useUI();
+  const [data, setData] = useState(hoje());
+  const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
+  const [obs, setObs] = useState('');
+  const [qtds, setQtds] = useState({});
+  const [catAtiva, setCatAtiva] = useState(CATEGORIAS[0]);
+  const [busca, setBusca] = useState('');
+  const [tab, setTab] = useState('novo'); // 'novo' | 'historico'
+
+  const produtosAtivos = produtos.filter(p => p.ativo);
+  const buscando = busca.trim().length > 0;
+  const produtosVisiveis = buscando
+    ? produtosAtivos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()))
+    : produtosAtivos.filter(p => p.categoria === catAtiva);
+
+  const setQtd = (id, val) => {
+    const num = parseFloat(val);
+    setQtds(prev => ({ ...prev, [id]: isNaN(num) || num < 0 ? '' : val }));
+  };
+
+  const itensPreenchidos = Object.entries(qtds).filter(([, v]) => parseFloat(v) > 0);
+
+  const handleSalvar = () => {
+    if (!itensPreenchidos.length) {
+      toast('Adicione pelo menos um produto com quantidade.', 'aviso');
+      return;
+    }
+    addEntrada({
+      data,
+      hora: fmtHora(),
+      responsavel,
+      obs,
+      itens: itensPreenchidos.map(([produtoId, quantidade]) => ({ produtoId, quantidade: parseFloat(quantidade) })),
+    });
+    if (responsavel) setPref('responsavel', responsavel);
+    setQtds({});
+    setObs('');
+    toast(`Entrada de ${itensPreenchidos.length} item(ns) registrada!`, 'sucesso');
+  };
+
+  const entradasOrdenadas = [...entradas].sort((a, b) => b.data.localeCompare(a.data) || b.hora?.localeCompare(a.hora || ''));
+
+  return (
+    <Layout title="Entradas de Produção">
+      {/* Tabs */}
+      <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
+        {[['novo', '+ Nova Entrada'], ['historico', '📋 Histórico']].map(([v, l]) => (
+          <button key={v} onClick={() => setTab(v)}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors
+              ${tab === v ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'novo' ? (
+        <div className="space-y-4">
+          {/* Cabeçalho */}
+          <div className="bg-white rounded-xl p-4 space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Data</label>
+              <input type="date" value={data} onChange={e => setData(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <ResponsavelSelect value={responsavel} onChange={setResponsavel} />
+          </div>
+
+          {/* Busca */}
+          <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
+            placeholder="🔍 Buscar produto..."
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm" />
+
+          {/* Categorias */}
+          {!buscando && (
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {CATEGORIAS.map(c => (
+                <button key={c} onClick={() => setCatAtiva(c)}
+                  className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0
+                    ${catAtiva === c ? 'bg-polo-navy text-polo-gold' : 'bg-white text-gray-600 border border-gray-200'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Produtos */}
+          <div className="bg-white rounded-xl overflow-hidden">
+            {produtosVisiveis.length === 0 && (
+              <div className="text-center text-gray-400 py-6 text-sm">Nenhum produto encontrado.</div>
+            )}
+            {produtosVisiveis.map((p, i, arr) => (
+              <div key={p.id} className={`flex items-center px-4 py-3 gap-3 ${i < arr.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm text-gray-800 truncate">{p.nome}</div>
+                  <div className="text-xs text-gray-400">{p.unidade}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setQtd(p.id, Math.max(0, (parseFloat(qtds[p.id]) || 0) - 1).toString())}
+                    className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 font-bold text-lg flex items-center justify-center">−</button>
+                  <input
+                    type="number" min="0" step="0.5"
+                    value={qtds[p.id] ?? ''}
+                    onChange={e => setQtd(p.id, e.target.value)}
+                    placeholder="0"
+                    className="w-16 text-center border border-gray-200 rounded-lg py-1.5 text-sm font-semibold"
+                  />
+                  <button onClick={() => setQtd(p.id, ((parseFloat(qtds[p.id]) || 0) + 1).toString())}
+                    className="w-8 h-8 rounded-full bg-polo-navy text-polo-gold font-bold text-lg flex items-center justify-center">+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Obs + Salvar */}
+          <div className="bg-white rounded-xl p-4">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Observação (opcional)</label>
+            <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2}
+              placeholder="Alguma observação sobre esta entrada..."
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none" />
+          </div>
+
+          {itensPreenchidos.length > 0 && (
+            <div className="bg-polo-navy/10 rounded-xl p-3">
+              <p className="text-xs font-semibold text-polo-navy mb-1">Itens a registrar:</p>
+              {itensPreenchidos.map(([id, qtd]) => {
+                const p = produtos.find(x => x.id === id);
+                return (
+                  <div key={id} className="flex justify-between text-sm">
+                    <span>{p?.nome}</span>
+                    <span className="font-bold">{qtd} {p?.unidade}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <button onClick={handleSalvar} disabled={!itensPreenchidos.length}
+            className="w-full bg-polo-navy text-polo-gold font-bold py-4 rounded-xl text-base
+                       disabled:opacity-40 active:scale-95 transition-transform">
+            ✓ Registrar Entrada
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {entradasOrdenadas.length === 0 && (
+            <div className="text-center text-gray-400 py-12">Nenhuma entrada registrada ainda.</div>
+          )}
+          {entradasOrdenadas.map(e => (
+            <div key={e.id} className="bg-white rounded-xl p-4">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <div className="font-semibold text-sm">{fmtData(e.data)} {e.hora && `• ${e.hora}`}</div>
+                  {e.responsavel && <div className="text-xs text-gray-500">Por: {e.responsavel}</div>}
+                </div>
+                <button onClick={async () => {
+                    const ok = await confirm({ titulo: 'Remover entrada', mensagem: 'Remover esta entrada? O estoque será recalculado.', perigo: true, confirmar: 'Remover' });
+                    if (ok) { removeEntrada(e.id); toast('Entrada removida.', 'sucesso'); }
+                  }}
+                  className="text-red-400 text-xs font-semibold px-2 py-1 rounded hover:bg-red-50">
+                  Remover
+                </button>
+              </div>
+              {e.itens.map(item => {
+                const p = produtos.find(x => x.id === item.produtoId);
+                return (
+                  <div key={item.produtoId} className="flex justify-between text-sm border-t border-gray-50 pt-1 mt-1">
+                    <span className="text-gray-700">{p?.nome || item.produtoId}</span>
+                    <span className="font-semibold text-green-700">+{item.quantidade} {p?.unidade}</span>
+                  </div>
+                );
+              })}
+              {e.obs && <p className="text-xs text-gray-400 mt-2 italic">{e.obs}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </Layout>
+  );
+}
