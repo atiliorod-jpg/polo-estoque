@@ -31,3 +31,6 @@ export const totalPorProduto = (registros) => {
   });
   return totais;
 };
+
+// Nome legível de um produto a partir do id (compartilhado pelas telas)
+export const nomeProduto = (produtos, id) => produtos.find(p => p.id === id)?.nome || id;

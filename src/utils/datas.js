@@ -20,19 +20,4 @@ export function validarDataRegistro(data, ref = hoje()) {
   return { ok: true };
 }
 
-/**
- * Lotes com vencimento por produto (FEFO — first expire, first out).
- * Varre as entradas com validade e devolve, por produto, a validade mais
- * próxima ainda relevante. Aproximação: considera lotes dos últimos 60 dias.
- */
-export function validadesPorProduto(entradas, ref = hoje()) {
-  const corte = addDias(ref, -60);
-  const m = {};
-  entradas.forEach(e => {
-    (e.itens || []).forEach(it => {
-      if (!it.validade || e.data < corte) return;
-      if (!m[it.produtoId] || it.validade < m[it.produtoId]) m[it.produtoId] = it.validade;
-    });
-  });
-  return m; // { produtoId: 'YYYY-MM-DD' (validade mais próxima) }
-}
+// (o controle de validades por lote vive em utils/lotes.js — calcLotes)

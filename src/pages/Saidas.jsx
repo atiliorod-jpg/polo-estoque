@@ -4,6 +4,7 @@ import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
 import { hoje, fmtData, fmtHora, fmtNum } from '../utils/formatters';
+import { nomeProduto } from '../utils/calculos';
 import { validarDataRegistro, diasAte } from '../utils/datas';
 import { calcLotes } from '../utils/lotes';
 
@@ -91,11 +92,10 @@ export default function Saidas() {
   };
 
   const [buscaHist, setBuscaHist] = useState('');
-  const nomeDoProduto = (id) => produtos.find(p => p.id === id)?.nome || '';
   const saidasOrdenadas = [...saidas]
     .sort((a, b) => b.data.localeCompare(a.data) || b.hora?.localeCompare(a.hora || ''))
     .filter(s => !buscaHist ||
-      `${s.responsavel || ''} ${(s.itens || []).map(i => nomeDoProduto(i.produtoId)).join(' ')}`.toLowerCase().includes(buscaHist.toLowerCase()));
+      `${s.responsavel || ''} ${(s.itens || []).map(i => nomeProduto(produtos, i.produtoId)).join(' ')}`.toLowerCase().includes(buscaHist.toLowerCase()));
 
   return (
     <Layout title="Saídas para Restaurantes">

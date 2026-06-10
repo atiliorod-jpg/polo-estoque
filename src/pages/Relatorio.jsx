@@ -9,10 +9,15 @@ import { fmtData, fmtNum, semanaAtual, hoje } from '../utils/formatters';
 import { BarrasEmpilhadas, Donut, LinhaDias, BarraRendimento } from '../components/Charts';
 
 const rotuloMotivo = (cod) => MOTIVOS_DESPERDICIO.find(m => m.cod === cod)?.label || cod;
-const rotuloDestino = (cod) => DESTINOS_APARA.find(d => d.cod === cod)?.label || cod;
 
 export default function Relatorio() {
-  const { produtos, compras, entradas, saidas, aparas, desperdicio, calcEstoque, categorias } = useApp();
+  const { produtos, compras, entradas, saidas, aparas, desperdicio, calcEstoque, categorias, destinos } = useApp();
+  // destinos criados pelo usuário em Config também precisam aparecer com o nome certo
+  const rotuloDestino = (cod) =>
+    destinos.find(d => d.cod === cod)?.label || DESTINOS_APARA.find(d => d.cod === cod)?.label || cod;
+  // textos livres de "Outro" prevalecem sobre o rótulo genérico
+  const destinoDaApara = (a) => a.destinoOutro || rotuloDestino(a.destino);
+  const motivoDaPerda = (d) => d.motivoOutro || rotuloMotivo(d.motivo);
   const { toast } = useUI();
   const semana = semanaAtual();
   const [modo, setModo] = useState('diario'); // 'diario' | 'periodo'
@@ -43,7 +48,7 @@ export default function Relatorio() {
     [perdasF]);
   const aparasPorDestino = useMemo(
     () => somaPorCampo(aparasF, 'destino').map(x => ({ label: rotuloDestino(x.cod), valor: x.valor })),
-    [aparasF]);
+    [aparasF, destinos]);
   // Rendimento considera as compras do período, mas correções associadas de qualquer data
   const fornecedores = useMemo(() => rendimentoPorFornecedor(comprasF, aparas, desperdicio), [comprasF, aparas, desperdicio]);
 
@@ -117,7 +122,7 @@ export default function Relatorio() {
 
       // 5. Aparas (com resumo por destino)
       const apr = [['Data', 'Turno', 'Item', 'Qtd', 'Un.', 'Destino', 'Responsável']];
-      aparasF.forEach(a => apr.push([fmtData(a.data), a.turno, a.item, a.quantidade, a.unidade, rotuloDestino(a.destino), a.responsavel || '']));
+      aparasF.forEach(a => apr.push([fmtData(a.data), a.turno, a.item, a.quantidade, a.unidade, destinoDaApara(a), a.responsavel || '']));
       apr.push([]);
       apr.push(['TOTAL POR DESTINO']);
       aparasPorDestino.forEach(d => apr.push([d.label, d.valor]));
@@ -125,7 +130,7 @@ export default function Relatorio() {
 
       // 6. Perdas (com resumo por motivo)
       const per = [['Data', 'Turno', 'Item', 'Qtd', 'Un.', 'Motivo', 'Origem', 'Abateu Estoque?', 'Responsável']];
-      perdasF.forEach(d => per.push([fmtData(d.data), d.turno, d.item, d.quantidade, d.unidade, rotuloMotivo(d.motivo),
+      perdasF.forEach(d => per.push([fmtData(d.data), d.turno, d.item, d.quantidade, d.unidade, motivoDaPerda(d),
         d.origem === 'estoque' ? 'Estoque' : 'Recebimento', d.origem === 'estoque' ? 'SIM' : 'NÃO', d.responsavel || '']));
       per.push([]);
       per.push(['TOTAL POR MOTIVO']);

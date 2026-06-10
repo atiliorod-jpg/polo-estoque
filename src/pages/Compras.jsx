@@ -10,7 +10,7 @@ import { validarDataRegistro } from '../utils/datas';
 import { listaDeCompras, fatorCorrecaoItem } from '../utils/analise';
 
 export default function Compras() {
-  const { compras, addCompra, removeCompra, restaurarRegistro, aparas, desperdicio, fichas, calcEstoque, produtos, prefs, setPref } = useApp();
+  const { compras, addCompra, removeCompra, restaurarRegistro, aparas, desperdicio, fichas, calcEstoque, produtos, categorias, prefs, setPref } = useApp();
   const { temPermissao } = useAuth();
   const { toast, confirm } = useUI();
   const location = useLocation();
@@ -25,18 +25,30 @@ export default function Compras() {
 
   // ---- Planejador (gerência): busca digitável de preparação ----
   const [buscaPrep, setBuscaPrep] = useState('');
+  const [catPrep, setCatPrep] = useState('TODAS');
   const [fichaSelId, setFichaSelId] = useState('');
   const [porcoes, setPorcoes] = useState('');
   const [correcaoManual, setCorrecaoManual] = useState('');
 
   const fichaSel = fichas.find(f => f.id === fichaSelId);
-  const fichasFiltradas = useMemo(() => {
+  const buscandoPrep = buscaPrep.trim().length > 0;
+  // Busca tem prioridade; sem busca, filtra pela categoria escolhida (como no Início)
+  const fichasVisiveis = useMemo(() => {
     const q = buscaPrep.trim().toLowerCase();
-    if (!q) return [];
-    return fichas
-      .filter(f => f.materiaPrima.toLowerCase().includes(q) || f.preparacao.toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [fichas, buscaPrep]);
+    if (q) {
+      return fichas
+        .filter(f => f.materiaPrima.toLowerCase().includes(q) || f.preparacao.toLowerCase().includes(q))
+        .slice(0, 12);
+    }
+    return fichas.filter(f => catPrep === 'TODAS' || f.categoria === catPrep);
+  }, [fichas, buscaPrep, catPrep]);
+
+  // agrupadas por matéria-prima para a lista navegável
+  const gruposFichas = useMemo(() => {
+    const m = {};
+    fichasVisiveis.forEach(f => { (m[f.materiaPrima] = m[f.materiaPrima] || []).push(f); });
+    return Object.entries(m).sort(([a], [b]) => a.localeCompare(b));
+  }, [fichasVisiveis]);
 
   const correcaoHistorica = useMemo(
     () => (fichaSel ? fatorCorrecaoItem(fichaSel.materiaPrima, compras, aparas, desperdicio) : null),
@@ -183,22 +195,38 @@ export default function Compras() {
               ) : (
                 <>
                   <input type="text" value={buscaPrep} onChange={e => setBuscaPrep(e.target.value)}
-                    placeholder="🔍 Digite: parmegiana, strogonoff, filé..." autoFocus
+                    placeholder="🔍 Digite: parmegiana, strogonoff, filé..."
                     className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
-                  {fichasFiltradas.length > 0 && (
-                    <div className="border border-gray-100 rounded-lg mt-1 overflow-hidden">
-                      {fichasFiltradas.map(f => (
-                        <button key={f.id} onClick={() => { setFichaSelId(f.id); setCorrecaoManual(''); }}
-                          className="w-full text-left px-3 py-2.5 text-sm border-b border-gray-50 last:border-0 active:bg-polo-beige">
-                          <span className="font-semibold text-gray-800">{f.preparacao}</span>
-                          <span className="text-gray-500 text-xs"> — {f.materiaPrima} • {f.gramatura} g</span>
+
+                  {!buscandoPrep && (
+                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide mt-2">
+                      {['TODAS', ...categorias].map(c => (
+                        <button key={c} onClick={() => setCatPrep(c)}
+                          className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0
+                            ${catPrep === c ? 'bg-polo-navy text-polo-gold' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>
+                          {c === 'TODAS' ? 'Todas' : c}
                         </button>
                       ))}
                     </div>
                   )}
-                  {buscaPrep.trim() && fichasFiltradas.length === 0 && (
-                    <p className="text-xs text-gray-500 mt-1">Nenhuma preparação encontrada. Cadastre em Config → 🍽️ Fichas.</p>
-                  )}
+
+                  <div className="border border-gray-100 rounded-lg mt-2 overflow-hidden max-h-80 overflow-y-auto">
+                    {gruposFichas.map(([mp, lista]) => (
+                      <div key={mp}>
+                        <div className="bg-polo-beige/70 px-3 py-1 text-[10px] font-bold text-polo-navy uppercase tracking-wide sticky top-0">{mp}</div>
+                        {lista.map(f => (
+                          <button key={f.id} onClick={() => { setFichaSelId(f.id); setCorrecaoManual(''); }}
+                            className="w-full text-left px-3 py-2.5 text-sm border-b border-gray-50 last:border-0 active:bg-polo-beige">
+                            <span className="font-semibold text-gray-800">{f.preparacao}</span>
+                            <span className="text-gray-500 text-xs"> • {f.gramatura} g{(parseFloat(f.coccao) || 0) > 0 ? ` • 🔥−${f.coccao}%` : ''}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                    {gruposFichas.length === 0 && (
+                      <p className="text-xs text-gray-500 p-3">Nenhuma preparação encontrada. Cadastre em Config → 🍽️ Fichas.</p>
+                    )}
+                  </div>
                 </>
               )}
             </div>

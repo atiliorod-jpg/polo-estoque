@@ -28,7 +28,7 @@ function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto overscroll-contain p-4 flex">
+    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto overscroll-contain p-4 flex">
       <div className="bg-white w-full max-w-lg m-auto rounded-2xl p-6 space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="font-bold text-lg text-polo-navy">{produto ? 'Editar Produto' : 'Novo Produto'}</h2>
@@ -172,11 +172,25 @@ function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
   );
 }
 
-function ModalFicha({ ficha, onSalvar, onFechar }) {
-  const [form, setForm] = useState(ficha || { materiaPrima: '', preparacao: '', gramatura: '', coccao: '' });
+function ModalFicha({ ficha, fichas, categorias, onSalvar, onFechar }) {
+  const [form, setForm] = useState(ficha || { materiaPrima: '', categoria: categorias[0] || '', preparacao: '', gramatura: '', coccao: '' });
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+  // matérias-primas já existentes (sem repetição) para sugerir e evitar grupos duplicados
+  const materiasPrimas = [...new Map(fichas.map(f => [f.materiaPrima.toLowerCase(), f.materiaPrima])).values()].sort();
+
+  // ao escolher uma matéria-prima conhecida, herda a grafia exata e a categoria dela
+  const onMateriaPrima = (valor) => {
+    const existente = fichas.find(f => f.materiaPrima.toLowerCase() === valor.trim().toLowerCase());
+    setForm(prev => ({
+      ...prev,
+      materiaPrima: existente ? existente.materiaPrima : valor,
+      categoria: existente?.categoria || prev.categoria,
+    }));
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto overscroll-contain p-4 flex">
+    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto overscroll-contain p-4 flex">
       <div className="bg-white w-full max-w-lg m-auto rounded-2xl p-6 space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="font-bold text-lg text-polo-navy">{ficha ? 'Editar Ficha' : 'Nova Ficha'}</h2>
@@ -184,9 +198,20 @@ function ModalFicha({ ficha, onSalvar, onFechar }) {
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">Matéria-prima</label>
-          <input type="text" value={form.materiaPrima} onChange={e => set('materiaPrima', e.target.value)}
-            placeholder="Ex: Filé Mignon"
+          <input type="text" list="lista-materias-primas" value={form.materiaPrima} onChange={e => onMateriaPrima(e.target.value)}
+            placeholder="Escolha da lista ou digite uma nova"
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <datalist id="lista-materias-primas">
+            {materiasPrimas.map(mp => <option key={mp} value={mp} />)}
+          </datalist>
+          <p className="text-xs text-gray-500 mt-1">Escolher uma existente agrupa a preparação nela (evita "Filé" e "Filé Mignon" separados).</p>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Categoria</label>
+          <select value={form.categoria || ''} onChange={e => set('categoria', e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">Preparação</label>
@@ -227,6 +252,15 @@ export default function Configuracoes() {
   const { usuarios, setUsuarios, criarUsuario, sessao, temPermissao } = useAuth();
   const { toast, confirm } = useUI();
   const sugestoes = calcSugestoesMinMax(produtos, saidas);
+
+  // O que falta preencher em cada produto (marcação pedida pelo cliente)
+  const pendenciasDoProduto = (p) => {
+    const falta = [];
+    if (!p.min && !p.max) falta.push('mín/máx');
+    if (!p.valCongelado && !p.valResfriado) falta.push('validade');
+    if (p.unidade === 'unid' && !p.pesoUnidade) falta.push('peso/unid');
+    return falta;
+  };
   const [novoDestino, setNovoDestino] = useState('');
   const [novaCategoria, setNovaCategoria] = useState('');
   const [novoUsuario, setNovoUsuario] = useState({ nome: '', pin: '', cargo: 'cozinha' });
@@ -431,6 +465,11 @@ export default function Configuracoes() {
                 {(p.estoqueInicial > 0) && ` • Inicial ${p.estoqueInicial}`}
                 {(p.min > 0 || p.max > 0) && ` • Mín ${p.min} / Máx ${p.max}`}
               </div>
+              {pendenciasDoProduto(p).length > 0 && (
+                <div className="text-[10px] font-semibold text-amber-600 mt-0.5">
+                  ⚠️ falta: {pendenciasDoProduto(p).join(', ')}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <button onClick={() => setEditando(p)}
@@ -723,7 +762,7 @@ export default function Configuracoes() {
 
       {/* Modal de redefinição de PIN */}
       {resetPin && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-6">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4">
             <h2 className="font-bold text-lg text-polo-navy">Redefinir PIN — {resetPin.nome}</h2>
             <input type="password" inputMode="numeric" value={pinNovo}
@@ -754,7 +793,12 @@ export default function Configuracoes() {
       {(editandoFicha || criandoFicha) && (
         <ModalFicha
           ficha={editandoFicha}
+          fichas={fichas}
+          categorias={categorias}
           onSalvar={(form) => {
+            // normaliza para a grafia da matéria-prima já existente (evita grupos duplicados)
+            const existente = fichas.find(f => f.materiaPrima.toLowerCase() === form.materiaPrima.trim().toLowerCase());
+            form = { ...form, materiaPrima: existente ? existente.materiaPrima : form.materiaPrima.trim() };
             if (editandoFicha) {
               setFichas(fichas.map(f => f.id === editandoFicha.id ? { ...f, ...form } : f));
               logAudit('editou ficha', form.preparacao);

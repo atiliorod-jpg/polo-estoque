@@ -4,6 +4,7 @@ import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
 import { hoje, fmtData, fmtHora } from '../utils/formatters';
+import { nomeProduto } from '../utils/calculos';
 import { validarDataRegistro, addDias } from '../utils/datas';
 
 export default function Entradas() {
@@ -72,11 +73,10 @@ export default function Entradas() {
   };
 
   const [buscaHist, setBuscaHist] = useState('');
-  const nomeDoProduto = (id) => produtos.find(p => p.id === id)?.nome || '';
   const entradasOrdenadas = [...entradas]
     .sort((a, b) => b.data.localeCompare(a.data) || b.hora?.localeCompare(a.hora || ''))
     .filter(e => !buscaHist ||
-      `${e.responsavel || ''} ${(e.itens || []).map(i => nomeDoProduto(i.produtoId)).join(' ')}`.toLowerCase().includes(buscaHist.toLowerCase()));
+      `${e.responsavel || ''} ${(e.itens || []).map(i => nomeProduto(produtos, i.produtoId)).join(' ')}`.toLowerCase().includes(buscaHist.toLowerCase()));
 
   return (
     <Layout title="Entradas de Produção">
