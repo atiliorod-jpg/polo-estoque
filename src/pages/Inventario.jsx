@@ -3,16 +3,15 @@ import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
-import { CATEGORIAS } from '../data/produtos';
 import { fmtNum, fmtData, hoje, fmtHora } from '../utils/formatters';
 
 export default function Inventario() {
-  const { produtos, calcEstoque, addAjuste, ajustes, removeAjuste, restaurarRegistro, prefs, setPref } = useApp();
+  const { produtos, calcEstoque, addAjuste, ajustes, removeAjuste, restaurarRegistro, categorias, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
   const [contagem, setContagem] = useState({});
-  const [catAtiva, setCatAtiva] = useState(CATEGORIAS[0]);
+  const [catAtiva, setCatAtiva] = useState(categorias[0]);
   const [tab, setTab] = useState('novo');
 
   const estoque = calcEstoque();
@@ -74,7 +73,7 @@ export default function Inventario() {
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {CATEGORIAS.map(c => (
+            {categorias.map(c => (
               <button key={c} onClick={() => setCatAtiva(c)}
                 className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0
                   ${catAtiva === c ? 'bg-polo-navy text-polo-gold' : 'bg-white text-gray-600 border border-gray-200'}`}>

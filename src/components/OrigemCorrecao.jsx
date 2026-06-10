@@ -1,12 +1,11 @@
 import { useApp } from '../store/AppContext';
-import { CATEGORIAS } from '../data/produtos';
 import { fmtData } from '../utils/formatters';
 
 // Define a origem de uma apara/desperdício:
 //  - 'recebimento': perda na compra bruta (limpeza). NÃO abate estoque; associa a uma compra (opcional).
 //  - 'estoque': item que já estava no estoque e estragou/perdeu. ABATE do estoque.
 export default function OrigemCorrecao({ form, onChange }) {
-  const { produtos, compras } = useApp();
+  const { produtos, compras, categorias } = useApp();
   const ativos = produtos.filter(p => p.ativo);
   const comprasRecentes = [...compras].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 30);
 
@@ -54,7 +53,7 @@ export default function OrigemCorrecao({ form, onChange }) {
           <select value={form.produtoId || ''} onChange={e => selecionarProduto(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
             <option value="">Selecione o produto...</option>
-            {CATEGORIAS.map(cat => {
+            {categorias.map(cat => {
               const prods = ativos.filter(p => p.categoria === cat);
               if (!prods.length) return null;
               return (

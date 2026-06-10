@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
-import { CATEGORIAS, DESTINOS_APARA, MOTIVOS_DESPERDICIO } from '../data/produtos';
+import { DESTINOS_APARA, MOTIVOS_DESPERDICIO } from '../data/produtos';
 import { filtrarPorPeriodo, totalPorProduto, statusEstoque } from '../utils/calculos';
 import { saidasPorDia, topProdutosSaida, somaPorCampo, rendimentoPorFornecedor } from '../utils/analise';
 import { fmtData, fmtNum, semanaAtual, hoje } from '../utils/formatters';
@@ -12,7 +12,7 @@ const rotuloMotivo = (cod) => MOTIVOS_DESPERDICIO.find(m => m.cod === cod)?.labe
 const rotuloDestino = (cod) => DESTINOS_APARA.find(d => d.cod === cod)?.label || cod;
 
 export default function Relatorio() {
-  const { produtos, compras, entradas, saidas, aparas, desperdicio, calcEstoque } = useApp();
+  const { produtos, compras, entradas, saidas, aparas, desperdicio, calcEstoque, categorias } = useApp();
   const { toast } = useUI();
   const semana = semanaAtual();
   const [modo, setModo] = useState('diario'); // 'diario' | 'periodo'
@@ -85,7 +85,7 @@ export default function Relatorio() {
 
       // 2. Movimentação por produto + estoque atual
       const mov = [['Categoria', 'Produto', 'Un.', 'Entradas', 'Saídas Central', 'Saídas Beer', 'Saídas Total', 'Estoque Atual', 'Mín', 'Máx', 'Situação']];
-      CATEGORIAS.forEach(cat => {
+      categorias.forEach(cat => {
         produtosAtivos.filter(p => p.categoria === cat).forEach(p => {
           const e = totalEntradas[p.id] || 0;
           const sc = totalSaidasCentral[p.id] || 0;
@@ -266,7 +266,7 @@ export default function Relatorio() {
             </tr>
           </thead>
           <tbody>
-            {CATEGORIAS.map(cat => {
+            {categorias.map(cat => {
               const linhas = produtosAtivos
                 .filter(p => p.categoria === cat)
                 .map(p => ({ p, e: totalEntradas[p.id] || 0, sc: totalSaidasCentral[p.id] || 0, sb: totalSaidasBeer[p.id] || 0 }))

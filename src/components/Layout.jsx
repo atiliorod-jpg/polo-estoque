@@ -46,7 +46,11 @@ export default function Layout({ title, children, actions }) {
           )}
         </div>
       </header>
-      <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
+      {/* marca d'água Aurum — decorativa, atrás do conteúdo */}
+      <div aria-hidden="true" className="fixed inset-0 pointer-events-none flex items-center justify-center print:hidden">
+        <img src={LOGO} alt="" className="w-72 h-72 opacity-[0.05] rounded-full" />
+      </div>
+      <main className="flex-1 p-4 max-w-2xl mx-auto w-full relative">
         {children}
       </main>
       <NavBar />

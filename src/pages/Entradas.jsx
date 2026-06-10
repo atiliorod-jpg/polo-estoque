@@ -3,19 +3,18 @@ import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
-import { CATEGORIAS } from '../data/produtos';
 import { hoje, fmtData, fmtHora } from '../utils/formatters';
 import { validarDataRegistro, addDias } from '../utils/datas';
 
 export default function Entradas() {
-  const { produtos, addEntrada, entradas, removeEntrada, restaurarRegistro, prefs, setPref } = useApp();
+  const { produtos, addEntrada, entradas, removeEntrada, restaurarRegistro, categorias, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
   const [obs, setObs] = useState('');
   const [armazenamento, setArmazenamento] = useState('congelado');
   const [qtds, setQtds] = useState({});
-  const [catAtiva, setCatAtiva] = useState(CATEGORIAS[0]);
+  const [catAtiva, setCatAtiva] = useState(categorias[0]);
   const [busca, setBusca] = useState('');
   const [tab, setTab] = useState('novo'); // 'novo' | 'historico'
 
@@ -72,7 +71,12 @@ export default function Entradas() {
     toast(`Entrada de ${itensPreenchidos.length} item(ns) registrada!`, 'sucesso');
   };
 
-  const entradasOrdenadas = [...entradas].sort((a, b) => b.data.localeCompare(a.data) || b.hora?.localeCompare(a.hora || ''));
+  const [buscaHist, setBuscaHist] = useState('');
+  const nomeDoProduto = (id) => produtos.find(p => p.id === id)?.nome || '';
+  const entradasOrdenadas = [...entradas]
+    .sort((a, b) => b.data.localeCompare(a.data) || b.hora?.localeCompare(a.hora || ''))
+    .filter(e => !buscaHist ||
+      `${e.responsavel || ''} ${(e.itens || []).map(i => nomeDoProduto(i.produtoId)).join(' ')}`.toLowerCase().includes(buscaHist.toLowerCase()));
 
   return (
     <Layout title="Entradas de Produção">
@@ -123,7 +127,7 @@ export default function Entradas() {
           {/* Categorias */}
           {!buscando && (
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {CATEGORIAS.map(c => (
+              {categorias.map(c => (
                 <button key={c} onClick={() => setCatAtiva(c)}
                   className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0
                     ${catAtiva === c ? 'bg-polo-navy text-polo-gold' : 'bg-white text-gray-600 border border-gray-200'}`}>
@@ -206,6 +210,9 @@ export default function Entradas() {
         </div>
       ) : (
         <div className="space-y-3">
+          <input type="text" value={buscaHist} onChange={e => setBuscaHist(e.target.value)}
+            placeholder="🔍 Buscar por produto ou responsável..."
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm" />
           {entradasOrdenadas.length === 0 && (
             <div className="text-center text-gray-500 py-12">Nenhuma entrada registrada ainda.</div>
           )}

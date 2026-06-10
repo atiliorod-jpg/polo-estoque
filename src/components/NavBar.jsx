@@ -10,7 +10,6 @@ const NAV = [
   { to: '/entradas',     icon: 'entradas',  label: 'Entradas' },
   { to: '/saidas',       icon: 'saidas',    label: 'Saídas' },
   { to: '/aparas',       icon: 'correcoes', label: 'Correções' },
-  { to: '/fichas',       icon: 'fichas',    label: 'Fichas' },
   { to: '/relatorio',    icon: 'relatorio', label: 'Relatório', cargo: 'gerencia' },
   { to: '/configuracoes',icon: 'config',    label: 'Config.', cargo: 'gerencia' },
 ];

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { PRODUTOS_INICIAIS, PESSOAS_INICIAIS, DESTINOS_APARA } from '../data/produtos';
+import { PRODUTOS_INICIAIS, PESSOAS_INICIAIS, DESTINOS_APARA, CATEGORIAS } from '../data/produtos';
 import { FICHAS_INICIAIS } from '../data/fichas';
 import { calcSugestoesMinMax } from '../utils/sugestoes';
 import { calcEstoquePuro } from '../utils/estoque';
@@ -16,6 +16,7 @@ const KEY = {
   pessoas: 'pe_pessoas',
   fichas: 'pe_fichas',
   destinos: 'pe_destinos',
+  categorias: 'pe_categorias',
   auditoria: 'pe_auditoria',
   prefs: 'pe_prefs',
 };
@@ -73,6 +74,12 @@ export function AppProvider({ children }) {
   const setDestinos = useCallback((val) => {
     setDestinosState(val);
     save(KEY.destinos, val);
+  }, []);
+
+  const [categorias, setCategoriasState] = useState(() => load(KEY.categorias, CATEGORIAS));
+  const setCategorias = useCallback((val) => {
+    setCategoriasState(val);
+    save(KEY.categorias, val);
   }, []);
   const [compras, setComprasState] = useState(() => load(KEY.compras, []));
   const [entradas, setEntradasState] = useState(() => load(KEY.entradas, []));
@@ -229,7 +236,7 @@ export function AppProvider({ children }) {
     const dados = {
       versao: 2,
       exportadoEm: new Date().toISOString(),
-      produtos, compras, entradas, saidas, aparas, desperdicio, ajustes, pessoas, fichas, destinos, auditoria, prefs,
+      produtos, compras, entradas, saidas, aparas, desperdicio, ajustes, pessoas, fichas, destinos, categorias, auditoria, prefs,
     };
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -252,6 +259,7 @@ export function AppProvider({ children }) {
     if (dados.pessoas) { setPessoasState(dados.pessoas); save(KEY.pessoas, dados.pessoas); }
     if (dados.fichas) { setFichasState(dados.fichas); save(KEY.fichas, dados.fichas); }
     if (dados.destinos) { setDestinosState(dados.destinos); save(KEY.destinos, dados.destinos); }
+    if (dados.categorias) { setCategoriasState(dados.categorias); save(KEY.categorias, dados.categorias); }
     if (dados.auditoria) { setAuditoriaState(dados.auditoria); save(KEY.auditoria, dados.auditoria); }
     if (dados.prefs) { setPrefsState(dados.prefs); save(KEY.prefs, dados.prefs); }
   }, []);
@@ -268,6 +276,7 @@ export function AppProvider({ children }) {
       pessoas, addPessoa, removePessoa,
       fichas, setFichas,
       destinos, setDestinos,
+      categorias, setCategorias,
       auditoria, logAudit,
       restaurarRegistro,
       prefs, setPref,

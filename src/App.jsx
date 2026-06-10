@@ -9,7 +9,6 @@ import Entradas from './pages/Entradas';
 import Saidas from './pages/Saidas';
 import Inventario from './pages/Inventario';
 import AparasPerdas from './pages/AparasPerdas';
-import Fichas from './pages/Fichas';
 import Relatorio from './pages/Relatorio';
 import Auditoria from './pages/Auditoria';
 import Configuracoes from './pages/Configuracoes';
@@ -32,7 +31,7 @@ function Rotas() {
         <Route path="/saidas" element={<Saidas />} />
         <Route path="/aparas" element={<AparasPerdas />} />
         <Route path="/desperdicio" element={<Navigate to="/aparas" replace />} />
-        <Route path="/fichas" element={<Fichas />} />
+        <Route path="/fichas" element={<Navigate to="/compras" replace />} />
         <Route path="/inventario" element={<Restrito><Inventario /></Restrito>} />
         <Route path="/relatorio" element={<Restrito><Relatorio /></Restrito>} />
         <Route path="/auditoria" element={<Restrito><Auditoria /></Restrito>} />

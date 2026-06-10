@@ -3,7 +3,6 @@ import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
-import { CATEGORIAS } from '../data/produtos';
 import { hoje, fmtData, fmtHora, fmtNum } from '../utils/formatters';
 import { validarDataRegistro, diasAte } from '../utils/datas';
 import { calcLotes } from '../utils/lotes';
@@ -14,14 +13,14 @@ const DESTINOS = [
 ];
 
 export default function Saidas() {
-  const { produtos, addSaida, saidas, removeSaida, restaurarRegistro, calcEstoque, entradas, desperdicio, prefs, setPref } = useApp();
+  const { produtos, addSaida, saidas, removeSaida, restaurarRegistro, calcEstoque, entradas, desperdicio, categorias, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
   const [destino, setDestino] = useState(prefs.destino || 'polo_central');
   const [obs, setObs] = useState('');
   const [qtds, setQtds] = useState({});
-  const [catAtiva, setCatAtiva] = useState(CATEGORIAS[0]);
+  const [catAtiva, setCatAtiva] = useState(categorias[0]);
   const [busca, setBusca] = useState('');
   const [tab, setTab] = useState('novo');
 
@@ -91,7 +90,12 @@ export default function Saidas() {
     registrar();
   };
 
-  const saidasOrdenadas = [...saidas].sort((a, b) => b.data.localeCompare(a.data) || b.hora?.localeCompare(a.hora || ''));
+  const [buscaHist, setBuscaHist] = useState('');
+  const nomeDoProduto = (id) => produtos.find(p => p.id === id)?.nome || '';
+  const saidasOrdenadas = [...saidas]
+    .sort((a, b) => b.data.localeCompare(a.data) || b.hora?.localeCompare(a.hora || ''))
+    .filter(s => !buscaHist ||
+      `${s.responsavel || ''} ${(s.itens || []).map(i => nomeDoProduto(i.produtoId)).join(' ')}`.toLowerCase().includes(buscaHist.toLowerCase()));
 
   return (
     <Layout title="Saídas para Restaurantes">
@@ -136,7 +140,7 @@ export default function Saidas() {
 
           {!buscando && (
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {CATEGORIAS.map(c => (
+              {categorias.map(c => (
                 <button key={c} onClick={() => setCatAtiva(c)}
                   className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0
                     ${catAtiva === c ? 'bg-polo-navy text-polo-gold' : 'bg-white text-gray-600 border border-gray-200'}`}>
@@ -226,6 +230,9 @@ export default function Saidas() {
         </div>
       ) : (
         <div className="space-y-3">
+          <input type="text" value={buscaHist} onChange={e => setBuscaHist(e.target.value)}
+            placeholder="🔍 Buscar por produto ou responsável..."
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm" />
           {saidasOrdenadas.length === 0 && (
             <div className="text-center text-gray-500 py-12">Nenhuma saída registrada ainda.</div>
           )}

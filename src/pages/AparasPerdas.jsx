@@ -87,6 +87,7 @@ export default function AparasPerdas() {
     toast('Perda registrada.', 'sucesso');
   };
 
+  const [buscaHist, setBuscaHist] = useState('');
   const historico = [
     ...aparas.map(a => ({ ...a, _tipo: 'apara' })),
     ...desperdicio.map(d => ({ ...d, _tipo: 'perda' })),
@@ -305,10 +306,13 @@ export default function AparasPerdas() {
         </div>
       ) : (
         <div className="space-y-3">
+          <input type="text" value={buscaHist} onChange={e => setBuscaHist(e.target.value)}
+            placeholder="🔍 Buscar por item ou responsável..."
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm" />
           {historico.length === 0 && (
             <div className="text-center text-gray-500 py-12">Nenhum registro ainda.</div>
           )}
-          {historico.map(r => {
+          {historico.filter(r => !buscaHist || `${r.item} ${r.responsavel || ''}`.toLowerCase().includes(buscaHist.toLowerCase())).map(r => {
             const ehApara = r._tipo === 'apara';
             const dest = ehApara
               ? (r.destino === 'OUT' && r.destinoOutro

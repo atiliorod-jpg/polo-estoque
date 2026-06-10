@@ -8,11 +8,10 @@ import { calcSugestoesMinMax, produtosDivergentes } from '../utils/sugestoes';
 import { mediaDiariaSaidas, previsaoRuptura, listaDeCompras } from '../utils/analise';
 import { diasAte } from '../utils/datas';
 import { calcLotes } from '../utils/lotes';
-import { CATEGORIAS } from '../data/produtos';
 import { fmtNum, fmtData, hoje } from '../utils/formatters';
 
 export default function Dashboard() {
-  const { produtos, setProdutos, saidas, entradas, desperdicio, calcEstoque, prefs } = useApp();
+  const { produtos, setProdutos, saidas, entradas, desperdicio, calcEstoque, categorias, prefs } = useApp();
   const { toast } = useUI();
   const navigate = useNavigate();
   const [catAtiva, setCatAtiva] = useState('TODOS');
@@ -74,7 +73,7 @@ export default function Dashboard() {
     excesso: produtosAtivos.filter(p => statusEstoque(estoque[p.id] ?? 0, p.min, p.max) === 'excesso').length,
   };
 
-  const cats = ['TODOS', ...CATEGORIAS];
+  const cats = ['TODOS', ...categorias];
 
   return (
     <Layout title="Polo Estoque — Produção">
@@ -200,7 +199,7 @@ export default function Dashboard() {
 
       {/* Cards de produtos */}
       <div className="space-y-2">
-        {CATEGORIAS.filter(c => catAtiva === 'TODOS' || c === catAtiva).map(cat => {
+        {categorias.filter(c => catAtiva === 'TODOS' || c === catAtiva).map(cat => {
           const prods = produtosFiltrados.filter(p => p.categoria === cat);
           if (!prods.length) return null;
           return (

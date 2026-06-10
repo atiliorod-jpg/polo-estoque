@@ -4,14 +4,13 @@ import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
 import { useAuth, CARGOS } from '../store/AuthContext';
 import { useUI } from '../store/UIContext';
-import { CATEGORIAS } from '../data/produtos';
 import { calcSugestoesMinMax, DIAS_MIN, DIAS_MAX } from '../utils/sugestoes';
 
 // Campos numéricos ficam como texto enquanto edita (apagar/limpar funciona);
 // a conversão para número acontece só no salvar.
 const numVazio = (v) => (v === 0 || v == null ? '' : String(v));
 
-function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
+function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
   const [form, setForm] = useState(() => produto
     ? {
         ...produto,
@@ -20,10 +19,11 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
         max: numVazio(produto.max),
         valCongelado: numVazio(produto.valCongelado),
         valResfriado: numVazio(produto.valResfriado),
+        pesoUnidade: numVazio(produto.pesoUnidade),
       }
     : {
-        nome: '', categoria: CATEGORIAS[0], unidade: 'kg',
-        estoqueInicial: '', min: '', max: '', valCongelado: '', valResfriado: '', ativo: true,
+        nome: '', categoria: categorias[0], unidade: 'kg',
+        estoqueInicial: '', min: '', max: '', valCongelado: '', valResfriado: '', pesoUnidade: '', ativo: true,
       });
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -46,7 +46,7 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
           <label className="block text-xs font-semibold text-gray-600 mb-1">Categoria</label>
           <select value={form.categoria} onChange={e => set('categoria', e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
-            {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
 
@@ -128,6 +128,19 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
         </div>
         <p className="text-xs text-gray-500 -mt-2">Ao registrar uma entrada, o vencimento é calculado sozinho com esses prazos. 0 = sem controle de validade.</p>
 
+        {form.unidade === 'unid' && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">
+              ⚖️ Peso por unidade (g)
+            </label>
+            <input type="number" min="0" value={form.pesoUnidade}
+              onChange={e => set('pesoUnidade', e.target.value)}
+              placeholder="Ex: 130 (1 parmegiana = 130 g)"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <p className="text-xs text-gray-500 mt-1">Usado para converter a lista de compras em kg (ex.: 120 unid ≈ 15,6 kg).</p>
+          </div>
+        )}
+
         <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
           <span className="text-sm text-gray-700 flex-1">Produto ativo</span>
           <button onClick={() => set('ativo', !form.ativo)}
@@ -148,7 +161,56 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
               max: parseFloat(form.max) || 0,
               valCongelado: parseInt(form.valCongelado) || 0,
               valResfriado: parseInt(form.valResfriado) || 0,
+              pesoUnidade: parseFloat(form.pesoUnidade) || 0,
             })} disabled={!form.nome.trim()}
+            className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl disabled:opacity-40">
+            Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalFicha({ ficha, onSalvar, onFechar }) {
+  const [form, setForm] = useState(ficha || { materiaPrima: '', preparacao: '', gramatura: '', coccao: '' });
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto overscroll-contain p-4 flex">
+      <div className="bg-white w-full max-w-lg m-auto rounded-2xl p-6 space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="font-bold text-lg text-polo-navy">{ficha ? 'Editar Ficha' : 'Nova Ficha'}</h2>
+          <button onClick={onFechar} aria-label="Fechar" className="text-2xl text-gray-500">×</button>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Matéria-prima</label>
+          <input type="text" value={form.materiaPrima} onChange={e => set('materiaPrima', e.target.value)}
+            placeholder="Ex: Filé Mignon"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Preparação</label>
+          <input type="text" value={form.preparacao} onChange={e => set('preparacao', e.target.value)}
+            placeholder="Ex: Parmegiana"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Gramatura (g por porção/lote)</label>
+          <input type="number" min="0" value={form.gramatura} onChange={e => set('gramatura', e.target.value)}
+            placeholder="Ex: 130"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Fator de cocção — perda no cozimento (%)</label>
+          <input type="number" min="0" max="90" step="0.5" value={form.coccao ?? ''} onChange={e => set('coccao', e.target.value)}
+            placeholder="Vazio se não cozinha antes de porcionar"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <p className="text-xs text-gray-500 mt-1">Quanto o item perde de peso ao cozinhar (pese antes e depois na cozinha).</p>
+        </div>
+        <div className="flex gap-3 pt-2">
+          <button onClick={onFechar} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">Cancelar</button>
+          <button onClick={() => onSalvar({ ...form, gramatura: parseFloat(form.gramatura) || 0, coccao: Math.min(parseFloat(form.coccao) || 0, 90) })}
+            disabled={!form.materiaPrima.trim() || !form.preparacao.trim() || !parseFloat(form.gramatura)}
             className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl disabled:opacity-40">
             Salvar
           </button>
@@ -160,12 +222,44 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
 
 export default function Configuracoes() {
   const { produtos, setProdutos, saidas, limparTudo, resetarProdutos, exportarBackup, importarBackup,
-          pessoas, addPessoa, removePessoa, destinos, setDestinos, logAudit, prefs, setPref } = useApp();
+          pessoas, addPessoa, removePessoa, destinos, setDestinos, categorias, setCategorias,
+          fichas, setFichas, logAudit, prefs, setPref } = useApp();
   const { usuarios, setUsuarios, criarUsuario, sessao, temPermissao } = useAuth();
   const { toast, confirm } = useUI();
   const sugestoes = calcSugestoesMinMax(produtos, saidas);
   const [novoDestino, setNovoDestino] = useState('');
+  const [novaCategoria, setNovaCategoria] = useState('');
   const [novoUsuario, setNovoUsuario] = useState({ nome: '', pin: '', cargo: 'cozinha' });
+  const [buscaFicha, setBuscaFicha] = useState('');
+  const [editandoFicha, setEditandoFicha] = useState(null);
+  const [criandoFicha, setCriandoFicha] = useState(false);
+
+  const handleAddCategoria = () => {
+    const nome = novaCategoria.trim().toUpperCase();
+    if (!nome) return;
+    if (categorias.some(c => c.toUpperCase() === nome)) {
+      toast('Essa categoria já existe.', 'aviso');
+      return;
+    }
+    setCategorias([...categorias, nome]);
+    setNovaCategoria('');
+    logAudit('adicionou categoria', nome);
+    toast('Categoria criada.', 'sucesso');
+  };
+
+  const handleRemoveCategoria = async (cat) => {
+    const emUso = produtos.filter(p => p.categoria === cat).length;
+    if (emUso > 0) {
+      toast(`${emUso} produto(s) usam "${cat}" — mova-os de categoria antes de remover.`, 'aviso');
+      return;
+    }
+    const ok = await confirm({ titulo: 'Remover categoria', mensagem: `Remover "${cat}"?`, perigo: true, confirmar: 'Remover' });
+    if (ok) {
+      setCategorias(categorias.filter(c => c !== cat));
+      logAudit('removeu categoria', cat);
+      toast('Categoria removida.', 'sucesso');
+    }
+  };
 
   const handleAddDestino = () => {
     const label = novoDestino.trim();
@@ -298,7 +392,7 @@ export default function Configuracoes() {
     >
       {/* Seções */}
       <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
-        {[['produtos', '📦 Produtos'], ['acessos', '👤 Equipe & Acessos'], ['sistema', '🛠️ Sistema']].map(([v, l]) => (
+        {[['produtos', '📦 Produtos'], ['fichas', '🍽️ Fichas'], ['acessos', '👤 Acessos'], ['sistema', '🛠️ Sistema']].map(([v, l]) => (
           <button key={v} onClick={() => setSecao(v)}
             className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors
               ${secao === v ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
@@ -317,7 +411,7 @@ export default function Configuracoes() {
 
       {/* Categorias */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide mb-3">
-        {['TODOS', ...CATEGORIAS].map(c => (
+        {['TODOS', ...categorias].map(c => (
           <button key={c} onClick={() => setCatAtiva(c)}
             className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0
               ${catAtiva === c ? 'bg-polo-navy text-polo-gold' : 'bg-white text-gray-600 border border-gray-200'}`}>
@@ -357,6 +451,76 @@ export default function Configuracoes() {
         {produtosFiltrados.length === 0 && (
           <div className="text-center text-gray-500 py-8 text-sm">Nenhum produto encontrado.</div>
         )}
+      </div>
+
+      {/* Gerenciar categorias */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
+        <div>
+          <p className="text-xs font-bold text-polo-navy uppercase tracking-wide">🏷️ Categorias</p>
+          <p className="text-xs text-gray-500 mt-1">Organizam os produtos em todas as telas. Só é possível remover categorias sem produtos.</p>
+        </div>
+        <div className="flex gap-2">
+          <input type="text" value={novaCategoria} onChange={e => setNovaCategoria(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleAddCategoria(); }}
+            placeholder="Nova categoria (ex: BEBIDAS)"
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <button onClick={handleAddCategoria}
+            className="bg-polo-navy text-polo-gold font-bold px-4 rounded-lg text-sm">+ Add</button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {categorias.map(c => {
+            const n = produtos.filter(p => p.categoria === c).length;
+            return (
+              <span key={c} className="inline-flex items-center gap-1.5 bg-polo-beige rounded-full pl-3 pr-2 py-1 text-xs font-medium text-polo-navy">
+                {c} <span className="text-gray-500">({n})</span>
+                <button onClick={() => handleRemoveCategoria(c)} aria-label={`Remover categoria ${c}`}
+                  className="text-red-400 font-bold text-sm leading-none">×</button>
+              </span>
+            );
+          })}
+        </div>
+      </div>
+      </>}
+
+      {secao === 'fichas' && <>
+      <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy mb-3">
+        Gramaturas das preparações (cronograma do Polo). Usadas no <strong>🧮 Planejar</strong>, dentro de Compras, para calcular quanto comprar.
+      </div>
+      <div className="mb-3 flex gap-2">
+        <input type="text" value={buscaFicha} onChange={e => setBuscaFicha(e.target.value)}
+          placeholder="🔍 Buscar matéria-prima ou preparação..."
+          className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm" />
+        <button onClick={() => setCriandoFicha(true)}
+          className="bg-polo-gold text-polo-navy text-xs font-bold px-3 rounded-xl">+ Ficha</button>
+      </div>
+      <div className="space-y-3">
+        {Object.entries(
+          fichas
+            .filter(f => !buscaFicha || f.materiaPrima.toLowerCase().includes(buscaFicha.toLowerCase()) || f.preparacao.toLowerCase().includes(buscaFicha.toLowerCase()))
+            .reduce((m, f) => { (m[f.materiaPrima] = m[f.materiaPrima] || []).push(f); return m; }, {})
+        ).sort(([a], [b]) => a.localeCompare(b)).map(([mp, lista]) => (
+          <div key={mp} className="bg-white rounded-xl overflow-hidden">
+            <div className="bg-polo-beige px-4 py-2 text-xs font-bold text-polo-navy uppercase tracking-wide">{mp}</div>
+            {lista.map((f, i) => (
+              <div key={f.id} className={`flex items-center px-4 py-2.5 gap-3 ${i < lista.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-gray-800 truncate">{f.preparacao}</div>
+                  {(parseFloat(f.coccao) || 0) > 0 && (
+                    <div className="text-[10px] text-orange-600">🔥 cocção −{f.coccao}%</div>
+                  )}
+                </div>
+                <span className="text-sm font-bold text-polo-navy flex-shrink-0">{f.gramatura} g</span>
+                <button onClick={() => setEditandoFicha(f)}
+                  className="text-xs text-polo-navy font-semibold px-2 py-1 rounded bg-gray-100 flex-shrink-0">Editar</button>
+                <button onClick={async () => {
+                    const ok = await confirm({ titulo: 'Excluir ficha', mensagem: `Excluir "${f.preparacao}"?`, perigo: true, confirmar: 'Excluir' });
+                    if (ok) { setFichas(fichas.filter(x => x.id !== f.id)); logAudit('excluiu ficha', f.preparacao); toast('Ficha excluída.', 'sucesso'); }
+                  }} aria-label={`Excluir ficha ${f.preparacao}`}
+                  className="text-xs text-red-400 font-semibold px-2 py-1 rounded bg-red-50 flex-shrink-0">×</button>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
       </>}
 
@@ -581,8 +745,29 @@ export default function Configuracoes() {
         <ModalProduto
           produto={editando}
           sugestao={editando ? sugestoes[editando.id] : null}
+          categorias={categorias}
           onSalvar={handleSalvar}
           onFechar={() => { setEditando(null); setCriando(false); }}
+        />
+      )}
+
+      {(editandoFicha || criandoFicha) && (
+        <ModalFicha
+          ficha={editandoFicha}
+          onSalvar={(form) => {
+            if (editandoFicha) {
+              setFichas(fichas.map(f => f.id === editandoFicha.id ? { ...f, ...form } : f));
+              logAudit('editou ficha', form.preparacao);
+              toast('Ficha atualizada.', 'sucesso');
+            } else {
+              setFichas([...fichas, { ...form, id: `ficha_${Date.now()}` }]);
+              logAudit('criou ficha', form.preparacao);
+              toast('Ficha criada.', 'sucesso');
+            }
+            setEditandoFicha(null);
+            setCriandoFicha(false);
+          }}
+          onFechar={() => { setEditandoFicha(null); setCriandoFicha(false); }}
         />
       )}
     </Layout>

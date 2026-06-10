@@ -49,7 +49,11 @@ export function listaDeCompras(produtos, estoque) {
       const alvo = p.max > p.min ? p.max : p.min;
       const bruto = Math.max(alvo - atual, 0);
       const sugerido = p.unidade === 'unid' ? Math.ceil(bruto) : Math.ceil(bruto * 2) / 2;
-      return { p, atual, sugerido };
+      // produtos em unidade com peso cadastrado ganham o equivalente em kg para o pedido
+      const kg = p.unidade === 'unid' && p.pesoUnidade > 0
+        ? Math.round(sugerido * p.pesoUnidade / 100) / 10
+        : null;
+      return { p, atual, sugerido, kg };
     })
     .sort((a, b) => (a.atual / a.p.min) - (b.atual / b.p.min)); // mais crítico primeiro
 }
