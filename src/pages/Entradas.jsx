@@ -5,6 +5,7 @@ import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
 import { CATEGORIAS } from '../data/produtos';
 import { hoje, fmtData, fmtHora } from '../utils/formatters';
+import { validarDataRegistro, addDias } from '../utils/datas';
 
 export default function Entradas() {
   const { produtos, addEntrada, entradas, removeEntrada, prefs, setPref } = useApp();
@@ -12,6 +13,7 @@ export default function Entradas() {
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
   const [obs, setObs] = useState('');
+  const [armazenamento, setArmazenamento] = useState('congelado');
   const [qtds, setQtds] = useState({});
   const [catAtiva, setCatAtiva] = useState(CATEGORIAS[0]);
   const [busca, setBusca] = useState('');
@@ -30,17 +32,39 @@ export default function Entradas() {
 
   const itensPreenchidos = Object.entries(qtds).filter(([, v]) => parseFloat(v) > 0);
 
-  const handleSalvar = () => {
+  const handleSalvar = async () => {
     if (!itensPreenchidos.length) {
       toast('Adicione pelo menos um produto com quantidade.', 'aviso');
       return;
+    }
+    const v = validarDataRegistro(data);
+    if (!v.ok) {
+      toast('Não é possível registrar entrada em data futura.', 'erro');
+      return;
+    }
+    if (v.confirmar) {
+      const ok = await confirm({
+        titulo: 'Registro antigo',
+        mensagem: `Esta entrada é de ${v.dias} dias atrás (${fmtData(data)}). Confirma a data?`,
+        confirmar: 'Sim, registrar',
+      });
+      if (!ok) return;
     }
     addEntrada({
       data,
       hora: fmtHora(),
       responsavel,
       obs,
-      itens: itensPreenchidos.map(([produtoId, quantidade]) => ({ produtoId, quantidade: parseFloat(quantidade) })),
+      armazenamento,
+      itens: itensPreenchidos.map(([produtoId, quantidade]) => {
+        const p = produtos.find(x => x.id === produtoId);
+        const dias = armazenamento === 'congelado' ? (p?.valCongelado || 0) : (p?.valResfriado || 0);
+        return {
+          produtoId,
+          quantidade: parseFloat(quantidade),
+          ...(dias > 0 ? { validade: addDias(data, dias) } : {}),
+        };
+      }),
     });
     if (responsavel) setPref('responsavel', responsavel);
     setQtds({});
@@ -69,10 +93,26 @@ export default function Entradas() {
           <div className="bg-white rounded-xl p-4 space-y-3">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Data</label>
-              <input type="date" value={data} onChange={e => setData(e.target.value)}
+              <input type="date" value={data} max={hoje()} onChange={e => setData(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
             </div>
             <ResponsavelSelect value={responsavel} onChange={setResponsavel} />
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Armazenamento</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setArmazenamento('congelado')}
+                  className={`py-2.5 rounded-lg text-xs font-semibold border-2 transition-colors
+                    ${armazenamento === 'congelado' ? 'border-polo-gold bg-polo-navy text-polo-gold' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+                  ❄️ Congelado
+                </button>
+                <button type="button" onClick={() => setArmazenamento('resfriado')}
+                  className={`py-2.5 rounded-lg text-xs font-semibold border-2 transition-colors
+                    ${armazenamento === 'resfriado' ? 'border-polo-gold bg-polo-navy text-polo-gold' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+                  🧊 Resfriado
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">A validade de cada item é calculada sozinha pelos prazos do produto (Config).</p>
+            </div>
           </div>
 
           {/* Busca */}

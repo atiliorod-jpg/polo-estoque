@@ -4,6 +4,7 @@ import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
 import { hoje, fmtData, fmtHora, fmtNum } from '../utils/formatters';
+import { validarDataRegistro } from '../utils/datas';
 
 export default function Compras() {
   const { compras, addCompra, removeCompra, aparas, desperdicio, fichas, prefs, setPref } = useApp();
@@ -47,10 +48,16 @@ export default function Compras() {
     });
   };
 
-  const handleSalvar = () => {
+  const handleSalvar = async () => {
     if (!form.item.trim() || !form.quantidade) {
       toast('Preencha o item e a quantidade.', 'aviso');
       return;
+    }
+    const v = validarDataRegistro(form.data);
+    if (!v.ok) { toast('Não é possível registrar compra em data futura.', 'erro'); return; }
+    if (v.confirmar) {
+      const ok = await confirm({ titulo: 'Registro antigo', mensagem: `Esta compra é de ${v.dias} dias atrás (${fmtData(form.data)}). Confirma a data?`, confirmar: 'Sim, registrar' });
+      if (!ok) return;
     }
     addCompra({ ...form, hora: fmtHora(), quantidade: parseFloat(form.quantidade) });
     if (form.responsavel) setPref('responsavel', form.responsavel);
@@ -88,7 +95,7 @@ export default function Compras() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Data</label>
-                <input type="date" value={form.data} onChange={e => set('data', e.target.value)}
+                <input type="date" value={form.data} max={hoje()} onChange={e => set('data', e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>

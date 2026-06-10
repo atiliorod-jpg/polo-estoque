@@ -6,6 +6,7 @@ import ResponsavelSelect from '../components/ResponsavelSelect';
 import OrigemCorrecao from '../components/OrigemCorrecao';
 import { DESTINOS_APARA, MOTIVOS_DESPERDICIO } from '../data/produtos';
 import { hoje, fmtData, fmtHora } from '../utils/formatters';
+import { validarDataRegistro } from '../utils/datas';
 
 const TURNOS = ['Manhã', 'Tarde', 'Noite'];
 
@@ -19,16 +20,16 @@ const COR_MOTIVO = {
 };
 
 export default function AparasPerdas() {
-  const { compras, aparas, addApara, removeApara, desperdicio, addDesperdicio, removeDesperdicio, prefs, setPref } = useApp();
+  const { compras, aparas, addApara, removeApara, desperdicio, addDesperdicio, removeDesperdicio, destinos, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [tipo, setTipo] = useState('apara'); // 'apara' | 'perda'
   const [tab, setTab] = useState('novo');
 
   const [formApara, setFormApara] = useState({
-    data: hoje(), turno: prefs.turno || 'Manhã', compraId: '', item: '', quantidade: '', unidade: 'kg', destino: 'STG', responsavel: prefs.responsavel || '',
+    data: hoje(), turno: prefs.turno || 'Manhã', compraId: '', item: '', quantidade: '', unidade: 'kg', destino: 'STG', destinoOutro: '', responsavel: prefs.responsavel || '',
   });
   const [formPerda, setFormPerda] = useState({
-    data: hoje(), turno: prefs.turno || 'Manhã', origem: 'recebimento', produtoId: '', compraId: '', item: '', quantidade: '', unidade: 'kg', motivo: 'S', responsavel: prefs.responsavel || '',
+    data: hoje(), turno: prefs.turno || 'Manhã', origem: 'recebimento', produtoId: '', compraId: '', item: '', quantidade: '', unidade: 'kg', motivo: 'S', motivoOutro: '', responsavel: prefs.responsavel || '',
   });
 
   const setA = (k, v) => setFormApara(prev => ({ ...prev, [k]: v }));
@@ -37,32 +38,52 @@ export default function AparasPerdas() {
 
   const comprasRecentes = [...compras].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 30);
 
-  const salvarApara = () => {
+  const salvarApara = async () => {
     if (!formApara.item.trim() || !formApara.quantidade) {
       toast('Preencha a descrição e a quantidade.', 'aviso');
+      return;
+    }
+    const v = validarDataRegistro(formApara.data);
+    if (!v.ok) { toast('Não é possível registrar em data futura.', 'erro'); return; }
+    if (v.confirmar) {
+      const okData = await confirm({ titulo: 'Registro antigo', mensagem: `Este registro é de ${v.dias} dias atrás (${fmtData(formApara.data)}). Confirma a data?`, confirmar: 'Sim, registrar' });
+      if (!okData) return;
+    }
+    if (formApara.destino === 'OUT' && !formApara.destinoOutro.trim()) {
+      toast('Escreva qual é o destino previsto.', 'aviso');
       return;
     }
     // Apara é sempre monitoramento de rendimento: nunca abate estoque
     addApara({ ...formApara, origem: 'recebimento', hora: fmtHora(), quantidade: parseFloat(formApara.quantidade) });
     if (formApara.responsavel) setPref('responsavel', formApara.responsavel);
     setPref('turno', formApara.turno);
-    setFormApara(prev => ({ ...prev, compraId: '', item: '', quantidade: '' }));
+    setFormApara(prev => ({ ...prev, compraId: '', item: '', quantidade: '', destinoOutro: '' }));
     toast('Apara registrada! Vai para o freezer de reaproveitamento.', 'sucesso');
   };
 
-  const salvarPerda = () => {
+  const salvarPerda = async () => {
     if (!formPerda.item.trim() || !formPerda.quantidade) {
       toast('Preencha a descrição e a quantidade.', 'aviso');
       return;
+    }
+    const v = validarDataRegistro(formPerda.data);
+    if (!v.ok) { toast('Não é possível registrar em data futura.', 'erro'); return; }
+    if (v.confirmar) {
+      const okData = await confirm({ titulo: 'Registro antigo', mensagem: `Este registro é de ${v.dias} dias atrás (${fmtData(formPerda.data)}). Confirma a data?`, confirmar: 'Sim, registrar' });
+      if (!okData) return;
     }
     if (formPerda.origem === 'estoque' && !formPerda.produtoId) {
       toast('Selecione o produto do estoque que perdeu.', 'aviso');
       return;
     }
+    if (formPerda.motivo === 'O' && !formPerda.motivoOutro.trim()) {
+      toast('Escreva o motivo do descarte.', 'aviso');
+      return;
+    }
     addDesperdicio({ ...formPerda, hora: fmtHora(), quantidade: parseFloat(formPerda.quantidade) });
     if (formPerda.responsavel) setPref('responsavel', formPerda.responsavel);
     setPref('turno', formPerda.turno);
-    setFormPerda(prev => ({ ...prev, produtoId: '', compraId: '', item: '', quantidade: '' }));
+    setFormPerda(prev => ({ ...prev, produtoId: '', compraId: '', item: '', quantidade: '', motivoOutro: '' }));
     toast('Perda registrada.', 'sucesso');
   };
 
@@ -123,7 +144,7 @@ export default function AparasPerdas() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1">Data</label>
-                    <input type="date" value={formApara.data} onChange={e => setA('data', e.target.value)}
+                    <input type="date" value={formApara.data} max={hoje()} onChange={e => setA('data', e.target.value)}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                   </div>
                   <div>
@@ -175,7 +196,7 @@ export default function AparasPerdas() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Destino previsto</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {DESTINOS_APARA.map(d => (
+                    {destinos.map(d => (
                       <button key={d.cod} onClick={() => setA('destino', d.cod)}
                         className={`py-2 px-3 rounded-lg text-xs font-semibold text-left border-2 transition-colors
                           ${formApara.destino === d.cod
@@ -185,6 +206,11 @@ export default function AparasPerdas() {
                       </button>
                     ))}
                   </div>
+                  {formApara.destino === 'OUT' && (
+                    <input type="text" value={formApara.destinoOutro} onChange={e => setA('destinoOutro', e.target.value)}
+                      placeholder="Escreva o destino previsto..."
+                      className="w-full border border-polo-gold/60 bg-polo-beige/50 rounded-lg px-3 py-2 text-sm mt-2" />
+                  )}
                 </div>
 
                 <ResponsavelSelect value={formApara.responsavel} onChange={v => setA('responsavel', v)} />
@@ -205,7 +231,7 @@ export default function AparasPerdas() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1">Data</label>
-                    <input type="date" value={formPerda.data} onChange={e => setP('data', e.target.value)}
+                    <input type="date" value={formPerda.data} max={hoje()} onChange={e => setP('data', e.target.value)}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                   </div>
                   <div>
@@ -257,6 +283,11 @@ export default function AparasPerdas() {
                       </button>
                     ))}
                   </div>
+                  {formPerda.motivo === 'O' && (
+                    <input type="text" value={formPerda.motivoOutro} onChange={e => setP('motivoOutro', e.target.value)}
+                      placeholder="Escreva o motivo do descarte..."
+                      className="w-full border border-red-300 bg-red-50/50 rounded-lg px-3 py-2 text-sm mt-2" />
+                  )}
                 </div>
 
                 <ResponsavelSelect value={formPerda.responsavel} onChange={v => setP('responsavel', v)} />
@@ -276,8 +307,16 @@ export default function AparasPerdas() {
           )}
           {historico.map(r => {
             const ehApara = r._tipo === 'apara';
-            const dest = ehApara ? DESTINOS_APARA.find(d => d.cod === r.destino) : null;
-            const motivo = !ehApara ? MOTIVOS_DESPERDICIO.find(m => m.cod === r.motivo) : null;
+            const dest = ehApara
+              ? (r.destino === 'OUT' && r.destinoOutro
+                  ? { label: r.destinoOutro }
+                  : destinos.find(d => d.cod === r.destino) || DESTINOS_APARA.find(d => d.cod === r.destino))
+              : null;
+            const motivo = !ehApara
+              ? (r.motivo === 'O' && r.motivoOutro
+                  ? { label: r.motivoOutro }
+                  : MOTIVOS_DESPERDICIO.find(m => m.cod === r.motivo))
+              : null;
             const corMotivo = !ehApara ? (COR_MOTIVO[r.motivo] || 'bg-gray-100 text-gray-700') : '';
             return (
               <div key={`${r._tipo}-${r.id}`} className="bg-white rounded-xl p-4">

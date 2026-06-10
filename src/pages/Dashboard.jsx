@@ -4,11 +4,12 @@ import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import { statusEstoque, corStatus, pctBarra } from '../utils/calculos';
 import { calcSugestoesMinMax, produtosDivergentes } from '../utils/sugestoes';
+import { validadesPorProduto, diasAte } from '../utils/datas';
 import { CATEGORIAS } from '../data/produtos';
 import { fmtNum, fmtData, hoje } from '../utils/formatters';
 
 export default function Dashboard() {
-  const { produtos, setProdutos, saidas, calcEstoque, prefs } = useApp();
+  const { produtos, setProdutos, saidas, entradas, calcEstoque, prefs } = useApp();
   const { toast } = useUI();
   const [catAtiva, setCatAtiva] = useState('TODOS');
   const [verSugestoes, setVerSugestoes] = useState(false);
@@ -21,6 +22,16 @@ export default function Dashboard() {
     () => (prefs.autoMinMax ? [] : produtosDivergentes(produtos, sugestoes)),
     [produtos, sugestoes, prefs.autoMinMax]
   );
+
+  // Itens com lote vencendo em até 5 dias (e ainda com estoque) — sugerir uso primeiro
+  const vencendo = useMemo(() => {
+    const validades = validadesPorProduto(entradas);
+    return produtos
+      .filter(p => p.ativo && validades[p.id] && (estoque[p.id] ?? 0) > 0)
+      .map(p => ({ p, validade: validades[p.id], dias: diasAte(validades[p.id]) }))
+      .filter(x => x.dias <= 5)
+      .sort((a, b) => a.dias - b.dias);
+  }, [produtos, entradas, estoque]);
 
   const aplicarSugestao = (ids) => {
     const next = produtos.map(p => {
@@ -68,6 +79,23 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Lotes vencendo — usar primeiro (FEFO) */}
+      {vencendo.length > 0 && (
+        <div className="bg-orange-50 border border-orange-300 rounded-xl p-3 mb-4">
+          <p className="text-xs font-bold text-orange-700 mb-2">⏰ Usar primeiro — lotes vencendo</p>
+          <div className="space-y-1">
+            {vencendo.map(({ p, validade, dias }) => (
+              <div key={p.id} className="flex justify-between items-center text-xs">
+                <span className="font-medium text-gray-700">{p.nome}</span>
+                <span className={`font-bold ${dias < 0 ? 'text-red-600' : dias <= 2 ? 'text-orange-600' : 'text-amber-600'}`}>
+                  {dias < 0 ? `VENCIDO (${fmtData(validade)})` : dias === 0 ? 'vence HOJE' : `vence em ${dias}d (${fmtData(validade)})`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Sugestão de mín/máx pela média de saídas */}
       {divergentes.length > 0 && (

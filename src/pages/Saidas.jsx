@@ -5,6 +5,7 @@ import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
 import { CATEGORIAS } from '../data/produtos';
 import { hoje, fmtData, fmtHora, fmtNum } from '../utils/formatters';
+import { validarDataRegistro, validadesPorProduto, diasAte } from '../utils/datas';
 
 const DESTINOS = [
   { value: 'polo_central', label: '🏠 Polo Central' },
@@ -12,7 +13,7 @@ const DESTINOS = [
 ];
 
 export default function Saidas() {
-  const { produtos, addSaida, saidas, removeSaida, calcEstoque, prefs, setPref } = useApp();
+  const { produtos, addSaida, saidas, removeSaida, calcEstoque, entradas, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
@@ -25,6 +26,7 @@ export default function Saidas() {
 
   const produtosAtivos = produtos.filter(p => p.ativo);
   const estoque = calcEstoque();
+  const validades = validadesPorProduto(entradas);
   const buscando = busca.trim().length > 0;
   const produtosVisiveis = buscando
     ? produtosAtivos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()))
@@ -57,6 +59,19 @@ export default function Saidas() {
     if (!itensPreenchidos.length) {
       toast('Adicione pelo menos um produto com quantidade.', 'aviso');
       return;
+    }
+    const v = validarDataRegistro(data);
+    if (!v.ok) {
+      toast('Não é possível registrar saída em data futura.', 'erro');
+      return;
+    }
+    if (v.confirmar) {
+      const okData = await confirm({
+        titulo: 'Registro antigo',
+        mensagem: `Esta saída é de ${v.dias} dias atrás (${fmtData(data)}). Confirma a data?`,
+        confirmar: 'Sim, registrar',
+      });
+      if (!okData) return;
     }
     // Verifica se alguma saída deixa o estoque negativo
     const negativos = itensPreenchidos
@@ -94,7 +109,7 @@ export default function Saidas() {
           <div className="bg-white rounded-xl p-4 space-y-3">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Data</label>
-              <input type="date" value={data} onChange={e => setData(e.target.value)}
+              <input type="date" value={data} max={hoje()} onChange={e => setData(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
@@ -141,6 +156,15 @@ export default function Saidas() {
                   <div className="text-xs text-gray-400">
                     Em estoque: <span className={`font-semibold ${(estoque[p.id] ?? 0) <= 0 ? 'text-red-500' : 'text-gray-600'}`}>{fmtNum(estoque[p.id] ?? 0)} {p.unidade}</span>
                   </div>
+                  {validades[p.id] && (estoque[p.id] ?? 0) > 0 && (() => {
+                    const dias = diasAte(validades[p.id]);
+                    if (dias > 7) return null;
+                    return (
+                      <div className={`text-[10px] font-semibold ${dias < 0 ? 'text-red-600' : dias <= 3 ? 'text-orange-600' : 'text-amber-600'}`}>
+                        ⏰ {dias < 0 ? `lote VENCIDO em ${fmtData(validades[p.id])}` : `usar 1º — lote vence ${fmtData(validades[p.id])}`}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setQtd(p.id, Math.max(0, (parseFloat(qtds[p.id]) || 0) - 1).toString())}

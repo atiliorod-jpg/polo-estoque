@@ -67,7 +67,7 @@ export default function Inventario() {
           <div className="bg-white rounded-xl p-4 space-y-3">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Data</label>
-              <input type="date" value={data} onChange={e => setData(e.target.value)}
+              <input type="date" value={data} max={hoje()} onChange={e => setData(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
             </div>
             <ResponsavelSelect value={responsavel} onChange={setResponsavel} />

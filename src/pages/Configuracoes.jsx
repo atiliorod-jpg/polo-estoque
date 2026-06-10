@@ -2,13 +2,15 @@ import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
+import { useAuth, CARGOS } from '../store/AuthContext';
 import { useUI } from '../store/UIContext';
 import { CATEGORIAS } from '../data/produtos';
 import { calcSugestoesMinMax, DIAS_MIN, DIAS_MAX } from '../utils/sugestoes';
 
 function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
   const [form, setForm] = useState(produto || {
-    nome: '', categoria: CATEGORIAS[0], unidade: 'kg', estoqueInicial: 0, min: 0, max: 0, ativo: true,
+    nome: '', categoria: CATEGORIAS[0], unidade: 'kg', estoqueInicial: 0, min: 0, max: 0,
+    valCongelado: 0, valResfriado: 0, ativo: true,
   });
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -88,6 +90,26 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
           </div>
         )}
 
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">
+              ❄️ Validade congelado (dias)
+            </label>
+            <input type="number" min="0" value={form.valCongelado ?? 0}
+              onChange={e => set('valCongelado', parseInt(e.target.value) || 0)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">
+              🧊 Validade resfriado (dias)
+            </label>
+            <input type="number" min="0" value={form.valResfriado ?? 0}
+              onChange={e => set('valResfriado', parseInt(e.target.value) || 0)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 -mt-2">Ao registrar uma entrada, o vencimento é calculado sozinho com esses prazos. 0 = sem controle de validade.</p>
+
         <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
           <span className="text-sm text-gray-700 flex-1">Produto ativo</span>
           <button onClick={() => set('ativo', !form.ativo)}
@@ -113,9 +135,40 @@ function ModalProduto({ produto, sugestao, onSalvar, onFechar }) {
 
 export default function Configuracoes() {
   const { produtos, setProdutos, saidas, limparTudo, resetarProdutos, exportarBackup, importarBackup,
-          pessoas, addPessoa, removePessoa, prefs, setPref } = useApp();
+          pessoas, addPessoa, removePessoa, destinos, setDestinos, logAudit, prefs, setPref } = useApp();
+  const { usuarios, setUsuarios, criarUsuario, sessao, temPermissao } = useAuth();
   const { toast, confirm } = useUI();
   const sugestoes = calcSugestoesMinMax(produtos, saidas);
+  const [novoDestino, setNovoDestino] = useState('');
+  const [novoUsuario, setNovoUsuario] = useState({ nome: '', pin: '', cargo: 'cozinha' });
+
+  const handleAddDestino = () => {
+    const label = novoDestino.trim();
+    if (!label) return;
+    let cod = label.normalize('NFD').replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase() || 'DST';
+    while (destinos.some(d => d.cod === cod)) cod = cod.slice(0, 2) + Math.floor(Math.random() * 10);
+    // mantém OUT sempre por último
+    const semOut = destinos.filter(d => d.cod !== 'OUT');
+    const out = destinos.find(d => d.cod === 'OUT');
+    setDestinos([...semOut, { cod, label }, ...(out ? [out] : [])]);
+    setNovoDestino('');
+    logAudit('adicionou destino de apara', label);
+    toast('Destino adicionado.', 'sucesso');
+  };
+
+  const handleAddUsuario = () => {
+    const { nome, pin, cargo } = novoUsuario;
+    if (nome.trim().length < 2) { toast('Digite o nome do usuário.', 'aviso'); return; }
+    if (!/^\d{4,6}$/.test(pin)) { toast('PIN deve ter de 4 a 6 números.', 'aviso'); return; }
+    if (usuarios.some(u => u.nome.toLowerCase() === nome.trim().toLowerCase())) {
+      toast('Já existe usuário com esse nome.', 'aviso'); return;
+    }
+    criarUsuario(nome, pin, cargo);
+    addPessoa(nome); // já entra na lista de responsáveis também
+    logAudit('criou usuário', `${nome.trim()} (${CARGOS.find(c => c.id === cargo)?.label})`);
+    setNovoUsuario({ nome: '', pin: '', cargo: 'cozinha' });
+    toast('Usuário criado.', 'sucesso');
+  };
   const [catAtiva, setCatAtiva] = useState('TODOS');
   const [editando, setEditando] = useState(null);
   const [criando, setCriando] = useState(false);
@@ -312,6 +365,91 @@ export default function Configuracoes() {
                   if (ok) { removePessoa(p); toast('Pessoa removida.', 'sucesso'); }
                 }}
                 className="text-red-400 font-bold text-base leading-none">×</button>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Usuários e acessos */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
+        <div>
+          <p className="text-xs font-bold text-polo-navy uppercase tracking-wide">👤 Usuários e Acessos</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Cozinha registra operações; Gerência e Diretoria também acessam Relatório, Configurações, Contagem e o Histórico de Mudanças.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <input type="text" value={novoUsuario.nome} onChange={e => setNovoUsuario(p => ({ ...p, nome: e.target.value }))}
+            placeholder="Nome" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <input type="password" inputMode="numeric" value={novoUsuario.pin}
+            onChange={e => setNovoUsuario(p => ({ ...p, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+            placeholder="PIN (4-6 nº)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div className="flex gap-2">
+          <select value={novoUsuario.cargo} onChange={e => setNovoUsuario(p => ({ ...p, cargo: e.target.value }))}
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+            {CARGOS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+          <button onClick={handleAddUsuario}
+            className="bg-polo-navy text-polo-gold font-bold px-4 rounded-lg text-sm">+ Criar</button>
+        </div>
+        <div className="space-y-1.5">
+          {usuarios.map(u => (
+            <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+              <div>
+                <span className="text-sm font-semibold text-gray-800">{u.nome}</span>
+                <span className="text-[10px] font-bold text-polo-navy bg-polo-beige px-1.5 py-0.5 rounded ml-2">
+                  {CARGOS.find(c => c.id === u.cargo)?.label}
+                </span>
+                {u.id === sessao?.usuarioId && <span className="text-[10px] text-green-600 font-semibold ml-1.5">• você</span>}
+              </div>
+              {u.id !== sessao?.usuarioId && (
+                <button onClick={async () => {
+                    const ok = await confirm({ titulo: 'Remover usuário', mensagem: `Remover o acesso de ${u.nome}?`, perigo: true, confirmar: 'Remover' });
+                    if (ok) {
+                      setUsuarios(usuarios.filter(x => x.id !== u.id));
+                      logAudit('removeu usuário', u.nome);
+                      toast('Usuário removido.', 'sucesso');
+                    }
+                  }}
+                  className="text-red-400 text-xs font-semibold">Remover</button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Destinos de apara */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
+        <div>
+          <p className="text-xs font-bold text-polo-navy uppercase tracking-wide">✂️ Destinos de Apara</p>
+          <p className="text-xs text-gray-500 mt-1">Opções que aparecem ao registrar uma apara. "Outro" é fixo e abre campo livre.</p>
+        </div>
+        <div className="flex gap-2">
+          <input type="text" value={novoDestino} onChange={e => setNovoDestino(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleAddDestino(); }}
+            placeholder="Novo destino (ex: Escondidinho)"
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <button onClick={handleAddDestino}
+            className="bg-polo-navy text-polo-gold font-bold px-4 rounded-lg text-sm">+ Add</button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {destinos.map(d => (
+            <span key={d.cod} className="inline-flex items-center gap-1.5 bg-polo-beige rounded-full pl-3 pr-2 py-1 text-xs font-medium text-polo-navy">
+              <strong>{d.cod}</strong> {d.label}
+              {d.cod !== 'OUT' ? (
+                <button onClick={async () => {
+                    const ok = await confirm({ titulo: 'Remover destino', mensagem: `Remover "${d.label}"? Registros antigos não mudam.`, perigo: true, confirmar: 'Remover' });
+                    if (ok) {
+                      setDestinos(destinos.filter(x => x.cod !== d.cod));
+                      logAudit('removeu destino de apara', d.label);
+                      toast('Destino removido.', 'sucesso');
+                    }
+                  }}
+                  className="text-red-400 font-bold text-sm leading-none">×</button>
+              ) : (
+                <span className="text-gray-400 text-[9px]">(fixo)</span>
+              )}
             </span>
           ))}
         </div>

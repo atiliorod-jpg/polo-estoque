@@ -8,7 +8,7 @@ import { fmtNum } from '../utils/formatters';
 const CORRECAO_PADRAO = 10; // % usado quando ainda não há histórico de compras/aparas do item
 
 function ModalFicha({ ficha, onSalvar, onFechar }) {
-  const [form, setForm] = useState(ficha || { materiaPrima: '', preparacao: '', gramatura: '' });
+  const [form, setForm] = useState(ficha || { materiaPrima: '', preparacao: '', gramatura: '', coccao: '' });
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
   return (
     <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto overscroll-contain p-4 flex">
@@ -35,9 +35,18 @@ function ModalFicha({ ficha, onSalvar, onFechar }) {
             placeholder="Ex: 130"
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
         </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Fator de cocção — perda no cozimento (%)</label>
+          <input type="number" min="0" max="90" step="0.5" value={form.coccao ?? ''} onChange={e => set('coccao', e.target.value)}
+            placeholder="Ex: 30 (deixe vazio se não cozinha antes de porcionar)"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <p className="text-xs text-gray-400 mt-1">
+            Quanto o item perde de peso ao cozinhar, medido na sua cozinha (pese antes e depois). Ex.: carne de sol e charque encolhem bastante no cozimento.
+          </p>
+        </div>
         <div className="flex gap-3 pt-2">
           <button onClick={onFechar} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">Cancelar</button>
-          <button onClick={() => onSalvar({ ...form, gramatura: parseFloat(form.gramatura) || 0 })}
+          <button onClick={() => onSalvar({ ...form, gramatura: parseFloat(form.gramatura) || 0, coccao: Math.min(parseFloat(form.coccao) || 0, 90) })}
             disabled={!form.materiaPrima.trim() || !form.preparacao.trim() || !parseFloat(form.gramatura)}
             className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl disabled:opacity-40">
             Salvar
@@ -71,8 +80,13 @@ export default function Fichas() {
     : (correcaoHistorica != null ? correcaoHistorica * 100 : CORRECAO_PADRAO);
 
   const nPorcoes = parseFloat(porcoes) || 0;
-  const liquidoKg = ficha ? (nPorcoes * ficha.gramatura) / 1000 : 0;
-  const brutoKg = liquidoKg > 0 ? liquidoKg / (1 - correcaoPct / 100) : 0;
+  const coccaoPct = ficha ? (parseFloat(ficha.coccao) || 0) : 0;
+  // 1) peso servido (cozido) = porções × gramatura
+  const servidoKg = ficha ? (nPorcoes * ficha.gramatura) / 1000 : 0;
+  // 2) peso cru necessário = servido ÷ (1 − perda de cocção)
+  const cruKg = servidoKg > 0 ? servidoKg / (1 - coccaoPct / 100) : 0;
+  // 3) compra bruta = cru ÷ (1 − fator de correção de limpeza)
+  const brutoKg = cruKg > 0 ? cruKg / (1 - correcaoPct / 100) : 0;
 
   const grupos = useMemo(() => {
     const m = {};
@@ -165,23 +179,31 @@ export default function Fichas() {
           {ficha && nPorcoes > 0 && (
             <div className="bg-polo-navy rounded-xl p-5 text-white space-y-3">
               <p className="text-xs uppercase tracking-wide text-polo-gold font-bold">Resultado do planejamento</p>
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className={`grid ${coccaoPct > 0 ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 text-center`}>
                 <div className="bg-white/10 rounded-lg p-2.5">
-                  <div className="text-lg font-bold">{fmtNum(nPorcoes)}</div>
-                  <div className="text-[10px] opacity-80">porções × {ficha.gramatura} g</div>
+                  <div className="text-base font-bold">{fmtNum(nPorcoes)}</div>
+                  <div className="text-[9px] opacity-80">porções × {ficha.gramatura} g</div>
                 </div>
                 <div className="bg-white/10 rounded-lg p-2.5">
-                  <div className="text-lg font-bold">{fmtNum(liquidoKg)} kg</div>
-                  <div className="text-[10px] opacity-80">peso líquido</div>
+                  <div className="text-base font-bold">{fmtNum(servidoKg)} kg</div>
+                  <div className="text-[9px] opacity-80">peso servido</div>
                 </div>
+                {coccaoPct > 0 && (
+                  <div className="bg-white/10 rounded-lg p-2.5">
+                    <div className="text-base font-bold">{fmtNum(cruKg)} kg</div>
+                    <div className="text-[9px] opacity-80">cru (cocção {coccaoPct}%)</div>
+                  </div>
+                )}
                 <div className="bg-polo-gold text-polo-navy rounded-lg p-2.5">
-                  <div className="text-lg font-bold">{fmtNum(brutoKg)} kg</div>
-                  <div className="text-[10px] font-semibold">comprar bruto</div>
+                  <div className="text-base font-bold">{fmtNum(brutoKg)} kg</div>
+                  <div className="text-[9px] font-semibold">comprar bruto</div>
                 </div>
               </div>
               <p className="text-xs opacity-90">
-                🛒 Compre <strong>{fmtNum(brutoKg)} kg</strong> de <strong>{ficha.materiaPrima}</strong> para render{' '}
-                {fmtNum(liquidoKg)} kg limpos ({fmtNum(nPorcoes)} × {ficha.preparacao}), já contando {correcaoPct.toFixed(1)}% de aparas/perdas na limpeza.
+                🛒 Compre <strong>{fmtNum(brutoKg)} kg</strong> de <strong>{ficha.materiaPrima}</strong> para servir{' '}
+                {fmtNum(servidoKg)} kg ({fmtNum(nPorcoes)} × {ficha.preparacao})
+                {coccaoPct > 0 && <> — o cozimento reduz {coccaoPct}% do peso</>}
+                , mais {correcaoPct.toFixed(1)}% de aparas/perdas na limpeza.
               </p>
             </div>
           )}
@@ -198,6 +220,9 @@ export default function Fichas() {
                 <div key={f.id} className={`flex items-center px-4 py-2.5 gap-3 ${i < lista.length - 1 ? 'border-b border-gray-50' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-gray-800 truncate">{f.preparacao}</div>
+                    {(parseFloat(f.coccao) || 0) > 0 && (
+                      <div className="text-[10px] text-orange-600">🔥 cocção −{f.coccao}%</div>
+                    )}
                   </div>
                   <span className="text-sm font-bold text-polo-navy flex-shrink-0">{f.gramatura} g</span>
                   <button onClick={() => setEditando(f)}

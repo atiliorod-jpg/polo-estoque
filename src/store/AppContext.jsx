@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { PRODUTOS_INICIAIS, PESSOAS_INICIAIS } from '../data/produtos';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { PRODUTOS_INICIAIS, PESSOAS_INICIAIS, DESTINOS_APARA } from '../data/produtos';
 import { FICHAS_INICIAIS } from '../data/fichas';
 import { calcSugestoesMinMax } from '../utils/sugestoes';
+import { useAuth } from './AuthContext';
 
 const KEY = {
   produtos: 'pe_produtos',
@@ -13,6 +14,8 @@ const KEY = {
   ajustes: 'pe_ajustes',
   pessoas: 'pe_pessoas',
   fichas: 'pe_fichas',
+  destinos: 'pe_destinos',
+  auditoria: 'pe_auditoria',
   prefs: 'pe_prefs',
 };
 
@@ -37,7 +40,39 @@ const ordemTs = (r) => r.ts || parseInt(r.id, 10) || 0;
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
+  const { sessao } = useAuth() || {};
   const [produtos, setProdutosState] = useState(() => load(KEY.produtos, PRODUTOS_INICIAIS));
+  const [auditoria, setAuditoriaState] = useState(() => load(KEY.auditoria, []));
+  const [destinos, setDestinosState] = useState(() => load(KEY.destinos, DESTINOS_APARA));
+
+  // refs para os resumos de auditoria não dependerem de closures
+  const sessaoRef = useRef(sessao);
+  sessaoRef.current = sessao;
+  const produtosRef = useRef(produtos);
+  produtosRef.current = produtos;
+
+  const nomeProduto = (id) => produtosRef.current.find(p => p.id === id)?.nome || id;
+
+  // Trilha de auditoria: quem fez o quê, quando (visível para Gerência/Diretoria)
+  const logAudit = useCallback((acao, detalhe = '') => {
+    setAuditoriaState(prev => {
+      const reg = {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        ts: Date.now(),
+        usuario: sessaoRef.current?.nome || '—',
+        cargo: sessaoRef.current?.cargo || '',
+        acao, detalhe,
+      };
+      const next = [...prev.slice(-1999), reg];
+      save(KEY.auditoria, next);
+      return next;
+    });
+  }, []);
+
+  const setDestinos = useCallback((val) => {
+    setDestinosState(val);
+    save(KEY.destinos, val);
+  }, []);
   const [compras, setComprasState] = useState(() => load(KEY.compras, []));
   const [entradas, setEntradasState] = useState(() => load(KEY.entradas, []));
   const [saidas, setSaidasState] = useState(() => load(KEY.saidas, []));
@@ -85,34 +120,49 @@ export function AppProvider({ children }) {
     });
   }, []);
 
-  const makeAdd = (setState, key) => (registro) => {
+  // Resumos legíveis para a trilha de auditoria
+  const resumoItens = (r) => (r.itens || []).map(i => `${i.quantidade} ${nomeProduto(i.produtoId)}`).join(', ');
+  const RESUMOS = {
+    compra: (r) => `${r.quantidade} ${r.unidade} de ${r.item}${r.fornecedor ? ` (${r.fornecedor})` : ''}`,
+    entrada: (r) => resumoItens(r),
+    saída: (r) => `${resumoItens(r)} → ${r.destino === 'polo_beer' ? 'Polo Beer' : 'Polo Central'}`,
+    apara: (r) => `${r.quantidade} ${r.unidade} de ${r.item} → ${r.destinoOutro || r.destino}`,
+    perda: (r) => `${r.quantidade} ${r.unidade} de ${r.item} (motivo ${r.motivoOutro || r.motivo}${r.origem === 'estoque' ? ', abateu estoque' : ''})`,
+    'contagem física': (r) => `${nomeProduto(r.produtoId)} → ${r.quantidade}`,
+  };
+
+  const makeAdd = (setState, key, tipo) => (registro) => {
+    const novo = { ...registro, id: Date.now().toString(), ts: Date.now() };
     setState(prev => {
-      const next = [...prev, { ...registro, id: Date.now().toString(), ts: Date.now() }];
+      const next = [...prev, novo];
       save(key, next);
       return next;
     });
+    logAudit(`registrou ${tipo}`, RESUMOS[tipo]?.(novo) || '');
   };
 
-  const makeRemove = (setState, key) => (id) => {
+  const makeRemove = (setState, key, tipo) => (id) => {
     setState(prev => {
+      const alvo = prev.find(r => r.id === id);
       const next = prev.filter(r => r.id !== id);
       save(key, next);
+      if (alvo) logAudit(`removeu ${tipo}`, RESUMOS[tipo]?.(alvo) || '');
       return next;
     });
   };
 
-  const addCompra = useCallback(makeAdd(setComprasState, KEY.compras), []);
-  const removeCompra = useCallback(makeRemove(setComprasState, KEY.compras), []);
-  const addEntrada = useCallback(makeAdd(setEntradasState, KEY.entradas), []);
-  const removeEntrada = useCallback(makeRemove(setEntradasState, KEY.entradas), []);
-  const addSaida = useCallback(makeAdd(setSaidasState, KEY.saidas), []);
-  const removeSaida = useCallback(makeRemove(setSaidasState, KEY.saidas), []);
-  const addApara = useCallback(makeAdd(setAparasState, KEY.aparas), []);
-  const removeApara = useCallback(makeRemove(setAparasState, KEY.aparas), []);
-  const addDesperdicio = useCallback(makeAdd(setDesperdicioState, KEY.desperdicio), []);
-  const removeDesperdicio = useCallback(makeRemove(setDesperdicioState, KEY.desperdicio), []);
-  const addAjuste = useCallback(makeAdd(setAjustesState, KEY.ajustes), []);
-  const removeAjuste = useCallback(makeRemove(setAjustesState, KEY.ajustes), []);
+  const addCompra = useCallback(makeAdd(setComprasState, KEY.compras, 'compra'), []);
+  const removeCompra = useCallback(makeRemove(setComprasState, KEY.compras, 'compra'), []);
+  const addEntrada = useCallback(makeAdd(setEntradasState, KEY.entradas, 'entrada'), []);
+  const removeEntrada = useCallback(makeRemove(setEntradasState, KEY.entradas, 'entrada'), []);
+  const addSaida = useCallback(makeAdd(setSaidasState, KEY.saidas, 'saída'), []);
+  const removeSaida = useCallback(makeRemove(setSaidasState, KEY.saidas, 'saída'), []);
+  const addApara = useCallback(makeAdd(setAparasState, KEY.aparas, 'apara'), []);
+  const removeApara = useCallback(makeRemove(setAparasState, KEY.aparas, 'apara'), []);
+  const addDesperdicio = useCallback(makeAdd(setDesperdicioState, KEY.desperdicio, 'perda'), []);
+  const removeDesperdicio = useCallback(makeRemove(setDesperdicioState, KEY.desperdicio, 'perda'), []);
+  const addAjuste = useCallback(makeAdd(setAjustesState, KEY.ajustes, 'contagem física'), []);
+  const removeAjuste = useCallback(makeRemove(setAjustesState, KEY.ajustes, 'contagem física'), []);
 
   // Estoque automático: base = Estoque Inicial do produto (ou a última contagem física,
   // se houver). A partir da base, soma entradas e abate saídas, desperdício e aparas.
@@ -188,7 +238,8 @@ export function AppProvider({ children }) {
     setAparasState([]); save(KEY.aparas, []);
     setDesperdicioState([]); save(KEY.desperdicio, []);
     setAjustesState([]); save(KEY.ajustes, []);
-  }, []);
+    logAudit('apagou todos os registros', 'compras, entradas, saídas, aparas, perdas e contagens');
+  }, [logAudit]);
 
   const resetarProdutos = useCallback(() => {
     setProdutos(PRODUTOS_INICIAIS);
@@ -196,9 +247,9 @@ export function AppProvider({ children }) {
 
   const exportarBackup = useCallback(() => {
     const dados = {
-      versao: 1,
+      versao: 2,
       exportadoEm: new Date().toISOString(),
-      produtos, compras, entradas, saidas, aparas, desperdicio, ajustes, pessoas, fichas, prefs,
+      produtos, compras, entradas, saidas, aparas, desperdicio, ajustes, pessoas, fichas, destinos, auditoria, prefs,
     };
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -220,6 +271,8 @@ export function AppProvider({ children }) {
     if (dados.ajustes) { setAjustesState(dados.ajustes); save(KEY.ajustes, dados.ajustes); }
     if (dados.pessoas) { setPessoasState(dados.pessoas); save(KEY.pessoas, dados.pessoas); }
     if (dados.fichas) { setFichasState(dados.fichas); save(KEY.fichas, dados.fichas); }
+    if (dados.destinos) { setDestinosState(dados.destinos); save(KEY.destinos, dados.destinos); }
+    if (dados.auditoria) { setAuditoriaState(dados.auditoria); save(KEY.auditoria, dados.auditoria); }
     if (dados.prefs) { setPrefsState(dados.prefs); save(KEY.prefs, dados.prefs); }
   }, []);
 
@@ -234,6 +287,8 @@ export function AppProvider({ children }) {
       ajustes, addAjuste, removeAjuste,
       pessoas, addPessoa, removePessoa,
       fichas, setFichas,
+      destinos, setDestinos,
+      auditoria, logAudit,
       prefs, setPref,
       calcEstoque,
       limparTudo, resetarProdutos,
