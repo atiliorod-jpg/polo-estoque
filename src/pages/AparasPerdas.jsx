@@ -20,7 +20,7 @@ const COR_MOTIVO = {
 };
 
 export default function AparasPerdas() {
-  const { compras, aparas, addApara, removeApara, desperdicio, addDesperdicio, removeDesperdicio, destinos, prefs, setPref } = useApp();
+  const { compras, aparas, addApara, removeApara, desperdicio, addDesperdicio, removeDesperdicio, restaurarRegistro, destinos, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [tipo, setTipo] = useState('apara'); // 'apara' | 'perda'
   const [tab, setTab] = useState('novo');
@@ -100,8 +100,11 @@ export default function AparasPerdas() {
       confirmar: 'Remover',
     });
     if (!ok) return;
-    if (r._tipo === 'apara') removeApara(r.id); else removeDesperdicio(r.id);
-    toast('Registro removido.', 'sucesso');
+    const { _tipo, ...original } = r;
+    if (_tipo === 'apara') removeApara(r.id); else removeDesperdicio(r.id);
+    toast('Registro removido.', 'sucesso', {
+      acao: { label: 'Desfazer', onClick: () => restaurarRegistro(_tipo === 'apara' ? 'apara' : 'perda', original) },
+    });
   };
 
   return (

@@ -7,7 +7,7 @@ import { CATEGORIAS } from '../data/produtos';
 import { fmtNum, fmtData, hoje, fmtHora } from '../utils/formatters';
 
 export default function Inventario() {
-  const { produtos, calcEstoque, addAjuste, ajustes, removeAjuste, prefs, setPref } = useApp();
+  const { produtos, calcEstoque, addAjuste, ajustes, removeAjuste, restaurarRegistro, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
@@ -138,7 +138,10 @@ export default function Inventario() {
                   <span className="font-bold text-blue-700 text-sm">{fmtNum(aj.quantidade)} {p?.unidade}</span>
                   <button onClick={async () => {
                     const ok = await confirm({ titulo: 'Remover contagem', mensagem: 'Remover este ajuste de inventário?', perigo: true, confirmar: 'Remover' });
-                    if (ok) { removeAjuste(aj.id); toast('Contagem removida.', 'sucesso'); }
+                    if (ok) {
+                      removeAjuste(aj.id);
+                      toast('Contagem removida.', 'sucesso', { acao: { label: 'Desfazer', onClick: () => restaurarRegistro('ajuste', aj) } });
+                    }
                   }}
                     className="text-red-400 text-lg font-semibold">×</button>
                 </div>

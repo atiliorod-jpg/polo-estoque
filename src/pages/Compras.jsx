@@ -1,19 +1,38 @@
 import { useState, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import ResponsavelSelect from '../components/ResponsavelSelect';
 import { hoje, fmtData, fmtHora, fmtNum } from '../utils/formatters';
 import { validarDataRegistro } from '../utils/datas';
+import { listaDeCompras } from '../utils/analise';
 
 export default function Compras() {
-  const { compras, addCompra, removeCompra, aparas, desperdicio, fichas, prefs, setPref } = useApp();
+  const { compras, addCompra, removeCompra, restaurarRegistro, aparas, desperdicio, fichas, calcEstoque, produtos, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
+  const location = useLocation();
   const [form, setForm] = useState({
     data: hoje(), fornecedor: '', item: '', quantidade: '', unidade: 'kg', responsavel: prefs.responsavel || '',
   });
-  const [tab, setTab] = useState('novo');
+  const [tab, setTab] = useState(location.state?.tab || 'novo'); // novo | lista | historico
   const [fornecedorAuto, setFornecedorAuto] = useState(false);
+
+  const estoque = calcEstoque();
+  const lista = useMemo(() => listaDeCompras(produtos, estoque), [produtos, estoque]);
+
+  const copiarLista = async () => {
+    const texto = [
+      `🧾 LISTA DE COMPRAS — ${fmtData(hoje())}`,
+      ...lista.map(({ p, atual, sugerido }) => `• ${p.nome}: comprar ${fmtNum(sugerido)} ${p.unidade} (tem ${fmtNum(atual)}, mín ${p.min})`),
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(texto);
+      toast('Lista copiada! Cole onde precisar.', 'sucesso');
+    } catch {
+      toast('Não foi possível copiar automaticamente.', 'aviso');
+    }
+  };
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -76,14 +95,61 @@ export default function Compras() {
   return (
     <Layout title="Compras / Recebimento">
       <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
-        {[['novo', '+ Nova Compra'], ['historico', '📋 Histórico']].map(([v, l]) => (
+        {[['novo', '+ Nova'], ['lista', `🧾 Lista${lista.length ? ` (${lista.length})` : ''}`], ['historico', '📋 Histórico']].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors
               ${tab === v ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
             {l}
           </button>
         ))}
       </div>
+
+      {tab === 'lista' && (
+        <div className="space-y-3">
+          <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy">
+            Gerada automaticamente: produtos <strong>abaixo do estoque mínimo</strong>, com a quantidade sugerida para voltar ao máximo.
+          </div>
+          {lista.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 text-center">
+              <div className="text-3xl mb-2">✅</div>
+              <p className="text-sm font-semibold text-gray-700">Nada para comprar!</p>
+              <p className="text-xs text-gray-500 mt-1">Nenhum produto está abaixo do mínimo.</p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-white rounded-xl overflow-hidden">
+                <div className="bg-polo-navy px-4 py-2.5 flex justify-between items-center">
+                  <h2 className="text-polo-gold text-sm font-bold">Lista de Compras — {fmtData(hoje())}</h2>
+                  <span className="text-white/70 text-xs">{lista.length} itens</span>
+                </div>
+                {lista.map(({ p, atual, sugerido }, i) => (
+                  <div key={p.id} className={`flex items-center justify-between px-4 py-3 ${i < lista.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                    <div>
+                      <div className="font-medium text-sm text-gray-800">{p.nome}</div>
+                      <div className="text-xs text-gray-500">
+                        tem <span className={atual <= 0 ? 'text-red-600 font-bold' : 'font-semibold'}>{fmtNum(atual)}</span> • mín {p.min} • máx {p.max || '—'}
+                      </div>
+                    </div>
+                    <span className="font-bold text-polo-navy text-sm bg-polo-beige px-3 py-1.5 rounded-lg">
+                      {fmtNum(sugerido)} {p.unidade}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-3">
+                <button onClick={copiarLista}
+                  className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl text-sm">
+                  📋 Copiar lista
+                </button>
+                <button onClick={() => window.print()}
+                  className="flex-1 border border-polo-navy text-polo-navy font-semibold py-3 rounded-xl text-sm">
+                  🖨️ Imprimir
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {tab === 'novo' ? (
         <div className="space-y-4">
@@ -152,7 +218,7 @@ export default function Compras() {
             ✓ Registrar Compra
           </button>
         </div>
-      ) : (
+      ) : tab === 'historico' ? (
         <div className="space-y-3">
           {comprasOrdenadas.length === 0 && (
             <div className="text-center text-gray-500 py-12">Nenhuma compra registrada ainda.</div>
@@ -179,7 +245,10 @@ export default function Compras() {
                   </div>
                   <button onClick={async () => {
                       const ok = await confirm({ titulo: 'Remover compra', mensagem: 'Remover este recebimento?', perigo: true, confirmar: 'Remover' });
-                      if (ok) { removeCompra(c.id); toast('Compra removida.', 'sucesso'); }
+                      if (ok) {
+                        removeCompra(c.id);
+                        toast('Compra removida.', 'sucesso', { acao: { label: 'Desfazer', onClick: () => restaurarRegistro('compra', c) } });
+                      }
                     }}
                     className="text-red-400 text-xs font-semibold px-2 py-1 rounded hover:bg-red-50 ml-2">
                     ×
@@ -189,7 +258,7 @@ export default function Compras() {
             );
           })}
         </div>
-      )}
+      ) : null}
     </Layout>
   );
 }

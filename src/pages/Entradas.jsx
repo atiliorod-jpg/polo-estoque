@@ -8,7 +8,7 @@ import { hoje, fmtData, fmtHora } from '../utils/formatters';
 import { validarDataRegistro, addDias } from '../utils/datas';
 
 export default function Entradas() {
-  const { produtos, addEntrada, entradas, removeEntrada, prefs, setPref } = useApp();
+  const { produtos, addEntrada, entradas, removeEntrada, restaurarRegistro, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
@@ -218,7 +218,10 @@ export default function Entradas() {
                 </div>
                 <button onClick={async () => {
                     const ok = await confirm({ titulo: 'Remover entrada', mensagem: 'Remover esta entrada? O estoque será recalculado.', perigo: true, confirmar: 'Remover' });
-                    if (ok) { removeEntrada(e.id); toast('Entrada removida.', 'sucesso'); }
+                    if (ok) {
+                      removeEntrada(e.id);
+                      toast('Entrada removida.', 'sucesso', { acao: { label: 'Desfazer', onClick: () => restaurarRegistro('entrada', e) } });
+                    }
                   }}
                   className="text-red-400 text-xs font-semibold px-2 py-1 rounded hover:bg-red-50">
                   Remover

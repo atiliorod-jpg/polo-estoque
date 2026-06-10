@@ -165,6 +165,28 @@ export function AppProvider({ children }) {
   const addAjuste = useCallback(makeAdd(setAjustesState, KEY.ajustes, 'contagem física'), []);
   const removeAjuste = useCallback(makeRemove(setAjustesState, KEY.ajustes, 'contagem física'), []);
 
+  // Desfazer: devolve um registro removido exatamente como era (mesmo id/ts)
+  const MAPA_RESTAURO = {
+    compra: [setComprasState, KEY.compras, 'compra'],
+    entrada: [setEntradasState, KEY.entradas, 'entrada'],
+    saida: [setSaidasState, KEY.saidas, 'saída'],
+    apara: [setAparasState, KEY.aparas, 'apara'],
+    perda: [setDesperdicioState, KEY.desperdicio, 'perda'],
+    ajuste: [setAjustesState, KEY.ajustes, 'contagem física'],
+  };
+  const restaurarRegistro = useCallback((tipo, registro) => {
+    const alvo = MAPA_RESTAURO[tipo];
+    if (!alvo || !registro) return;
+    const [setState, key, rotulo] = alvo;
+    setState(prev => {
+      if (prev.some(r => r.id === registro.id)) return prev; // já restaurado
+      const next = [...prev, registro].sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      save(key, next);
+      return next;
+    });
+    logAudit(`restaurou ${rotulo} (desfazer)`, RESUMOS[rotulo]?.(registro) || '');
+  }, [logAudit]);
+
   // Estoque automático — regra completa (e coberta por testes) em utils/estoque.js
   const calcEstoque = useCallback(
     () => calcEstoquePuro({ produtos, entradas, saidas, ajustes, desperdicio }),
@@ -247,6 +269,7 @@ export function AppProvider({ children }) {
       fichas, setFichas,
       destinos, setDestinos,
       auditoria, logAudit,
+      restaurarRegistro,
       prefs, setPref,
       calcEstoque,
       limparTudo, resetarProdutos,

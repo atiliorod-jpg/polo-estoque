@@ -14,7 +14,7 @@ const DESTINOS = [
 ];
 
 export default function Saidas() {
-  const { produtos, addSaida, saidas, removeSaida, calcEstoque, entradas, desperdicio, prefs, setPref } = useApp();
+  const { produtos, addSaida, saidas, removeSaida, restaurarRegistro, calcEstoque, entradas, desperdicio, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
@@ -241,7 +241,10 @@ export default function Saidas() {
                   </div>
                   <button onClick={async () => {
                       const ok = await confirm({ titulo: 'Remover saída', mensagem: 'Remover esta saída? O estoque será recalculado.', perigo: true, confirmar: 'Remover' });
-                      if (ok) { removeSaida(s.id); toast('Saída removida.', 'sucesso'); }
+                      if (ok) {
+                        removeSaida(s.id);
+                        toast('Saída removida.', 'sucesso', { acao: { label: 'Desfazer', onClick: () => restaurarRegistro('saida', s) } });
+                      }
                     }}
                     className="text-red-400 text-xs font-semibold px-2 py-1 rounded hover:bg-red-50">
                     Remover

@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import { statusEstoque, corStatus, pctBarra } from '../utils/calculos';
 import { calcSugestoesMinMax, produtosDivergentes } from '../utils/sugestoes';
+import { mediaDiariaSaidas, previsaoRuptura, listaDeCompras } from '../utils/analise';
 import { diasAte } from '../utils/datas';
 import { calcLotes } from '../utils/lotes';
 import { CATEGORIAS } from '../data/produtos';
@@ -12,6 +14,7 @@ import { fmtNum, fmtData, hoje } from '../utils/formatters';
 export default function Dashboard() {
   const { produtos, setProdutos, saidas, entradas, desperdicio, calcEstoque, prefs } = useApp();
   const { toast } = useUI();
+  const navigate = useNavigate();
   const [catAtiva, setCatAtiva] = useState('TODOS');
   const [verSugestoes, setVerSugestoes] = useState(false);
   const [expandido, setExpandido] = useState(null); // produtoId com lotes abertos
@@ -38,6 +41,14 @@ export default function Dashboard() {
     });
     return lista.sort((a, b) => a.dias - b.dias);
   }, [produtos, lotes]);
+
+  // Previsão de ruptura (ritmo dos últimos 14 dias) e lista de compras
+  const medias = useMemo(() => mediaDiariaSaidas(saidas), [saidas]);
+  const emRisco = useMemo(
+    () => previsaoRuptura(produtos, estoque, medias).filter(x => x.dias <= 3),
+    [produtos, estoque, medias]
+  );
+  const lista = useMemo(() => listaDeCompras(produtos, estoque), [produtos, estoque]);
 
   const aplicarSugestao = (ids) => {
     const next = produtos.map(p => {
@@ -85,6 +96,34 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Lista de compras automática */}
+      {lista.length > 0 && (
+        <button onClick={() => navigate('/compras', { state: { tab: 'lista' } })}
+          className="w-full flex items-center justify-between bg-polo-navy text-white rounded-xl px-4 py-3 mb-4 active:scale-[0.99] transition-transform">
+          <span className="text-sm font-semibold">
+            🧾 Lista de compras pronta — <strong className="text-polo-gold">{lista.length} {lista.length === 1 ? 'item' : 'itens'}</strong> abaixo do mínimo
+          </span>
+          <span className="text-polo-gold text-lg">›</span>
+        </button>
+      )}
+
+      {/* Previsão de ruptura — ritmo atual de consumo */}
+      {emRisco.length > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-xl p-3 mb-4">
+          <p className="text-xs font-bold text-red-700 mb-2">📉 Risco de faltar (no ritmo atual de saídas)</p>
+          <div className="space-y-1">
+            {emRisco.map(({ p, dias }) => (
+              <div key={p.id} className="flex justify-between items-center text-xs">
+                <span className="font-medium text-gray-700">{p.nome} <span className="text-gray-500">({fmtNum(estoque[p.id] ?? 0)} {p.unidade})</span></span>
+                <span className="font-bold text-red-600">
+                  {dias < 1 ? 'acaba HOJE' : `acaba em ~${Math.ceil(dias)} dia${Math.ceil(dias) > 1 ? 's' : ''}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Lotes vencendo — usar primeiro (FEFO) */}
       {vencendo.length > 0 && (

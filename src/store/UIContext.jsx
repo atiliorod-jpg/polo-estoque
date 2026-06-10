@@ -9,13 +9,16 @@ export function UIProvider({ children }) {
   const [confirmState, setConfirmState] = useState(null);
   const resolverRef = useRef(null);
 
-  const toast = useCallback((mensagem, tipo = 'sucesso') => {
+  // opts.acao = { label, onClick } — toast com botão (ex.: Desfazer) dura mais
+  const toast = useCallback((mensagem, tipo = 'sucesso', opts = {}) => {
     const id = ++toastSeq;
-    setToasts(prev => [...prev, { id, mensagem, tipo }]);
+    setToasts(prev => [...prev, { id, mensagem, tipo, acao: opts.acao }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 2800);
+    }, opts.duracao ?? (opts.acao ? 6000 : 2800));
   }, []);
+
+  const fecharToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
 
   const confirm = useCallback((opts) => {
     return new Promise((resolve) => {
@@ -54,6 +57,12 @@ export function UIProvider({ children }) {
               {t.tipo === 'sucesso' ? '✓' : t.tipo === 'erro' ? '✕' : t.tipo === 'aviso' ? '⚠️' : 'ℹ️'}
             </span>
             <span className="flex-1">{t.mensagem}</span>
+            {t.acao && (
+              <button onClick={() => { t.acao.onClick(); fecharToast(t.id); }}
+                className="bg-white/25 hover:bg-white/35 font-bold text-xs px-3 py-1.5 rounded-lg flex-shrink-0 underline-offset-2">
+                {t.acao.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

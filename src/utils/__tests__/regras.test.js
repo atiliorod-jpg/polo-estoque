@@ -3,7 +3,7 @@ import { calcEstoquePuro } from '../estoque';
 import { calcLotes } from '../lotes';
 import { calcSugestoesMinMax } from '../sugestoes';
 import { validarDataRegistro, addDias, diasAte } from '../datas';
-import { rendimentoPorFornecedor, fatorCorrecaoItem } from '../analise';
+import { rendimentoPorFornecedor, fatorCorrecaoItem, mediaDiariaSaidas, previsaoRuptura, listaDeCompras } from '../analise';
 
 const P = (id, extra = {}) => ({ id, nome: id, unidade: 'kg', ativo: true, min: 0, max: 0, estoqueInicial: 0, ...extra });
 
@@ -134,6 +134,34 @@ describe('análise de fornecedores e correção', () => {
 
   it('fator de correção do item agrega todas as compras', () => {
     expect(fatorCorrecaoItem('Filé Mignon', compras, aparas, [])).toBeCloseTo(0.1); // 4,5/45
+  });
+});
+
+describe('previsão de ruptura e lista de compras', () => {
+  it('média diária precisa de ao menos 3 dias de histórico', () => {
+    const umDia = [{ data: '2026-06-10', itens: [{ produtoId: 'x', quantidade: 10 }] }];
+    expect(mediaDiariaSaidas(umDia, '2026-06-10')).toEqual({});
+  });
+
+  it('prevê em quantos dias o estoque acaba no ritmo atual', () => {
+    const saidas = [0, 1, 2, 3, 4].map(i => ({
+      data: addDias('2026-06-10', -i), itens: [{ produtoId: 'x', quantidade: 10 }],
+    }));
+    const medias = mediaDiariaSaidas(saidas, '2026-06-10'); // 10/dia
+    const risco = previsaoRuptura([P('x')], { x: 25 }, medias);
+    expect(risco[0].dias).toBeCloseTo(2.5);
+  });
+
+  it('lista de compras sugere repor até o máximo, mais crítico primeiro', () => {
+    const produtos = [
+      P('a', { min: 10, max: 20, nome: 'A' }),
+      P('b', { min: 10, max: 20, nome: 'B' }),
+      P('c', { min: 10, max: 20, nome: 'C' }),
+    ];
+    const lista = listaDeCompras(produtos, { a: 8, b: 0, c: 15 });
+    expect(lista.map(x => x.p.id)).toEqual(['b', 'a']); // c está acima do mín, fora da lista
+    expect(lista[0].sugerido).toBe(20); // b: 20 − 0
+    expect(lista[1].sugerido).toBe(12); // a: 20 − 8
   });
 });
 

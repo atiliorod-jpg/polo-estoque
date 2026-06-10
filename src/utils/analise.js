@@ -1,4 +1,58 @@
+import { hoje } from './formatters';
+
 const num = (v) => parseFloat(v) || 0;
+const DIA_MS = 86400000;
+
+/**
+ * Média diária de saídas por produto na janela recente (padrão 14 dias).
+ * Diferente das sugestões de mín/máx, funciona desde os primeiros dias de uso
+ * (com pelo menos 3 dias de histórico) — serve para prever ruptura.
+ */
+export function mediaDiariaSaidas(saidas, ref = hoje(), janelaDias = 14) {
+  if (!saidas.length) return {};
+  const primeira = saidas.reduce((m, s) => (s.data < m ? s.data : m), saidas[0].data);
+  const diasObservados = Math.min(janelaDias, Math.round((new Date(ref) - new Date(primeira)) / DIA_MS) + 1);
+  if (diasObservados < 3) return {};
+  const inicio = new Date(new Date(ref).getTime() - (janelaDias - 1) * DIA_MS).toISOString().slice(0, 10);
+  const tot = {};
+  saidas.forEach(s => {
+    if (s.data < inicio || s.data > ref) return;
+    (s.itens || []).forEach(it => {
+      tot[it.produtoId] = (tot[it.produtoId] || 0) + num(it.quantidade);
+    });
+  });
+  const m = {};
+  Object.entries(tot).forEach(([id, t]) => { m[id] = t / diasObservados; });
+  return m;
+}
+
+/**
+ * Previsão de ruptura: no ritmo atual, em quantos dias o estoque acaba.
+ * Retorna só produtos com consumo e estoque positivos, ordenados pelo risco.
+ */
+export function previsaoRuptura(produtos, estoque, medias) {
+  return produtos
+    .filter(p => p.ativo && (medias[p.id] || 0) > 0 && (estoque[p.id] ?? 0) > 0)
+    .map(p => ({ p, dias: (estoque[p.id] ?? 0) / medias[p.id] }))
+    .sort((a, b) => a.dias - b.dias);
+}
+
+/**
+ * Lista de compras automática: produtos abaixo do mínimo, com a quantidade
+ * sugerida para voltar ao máximo (ou ao mínimo, quando não há máximo).
+ */
+export function listaDeCompras(produtos, estoque) {
+  return produtos
+    .filter(p => p.ativo && p.min > 0 && (estoque[p.id] ?? 0) < p.min)
+    .map(p => {
+      const atual = estoque[p.id] ?? 0;
+      const alvo = p.max > p.min ? p.max : p.min;
+      const bruto = Math.max(alvo - atual, 0);
+      const sugerido = p.unidade === 'unid' ? Math.ceil(bruto) : Math.ceil(bruto * 2) / 2;
+      return { p, atual, sugerido };
+    })
+    .sort((a, b) => (a.atual / a.p.min) - (b.atual / b.p.min)); // mais crítico primeiro
+}
 
 // Soma de aparas + perdas associadas a cada compra (via compraId)
 export function correcoesPorCompra(aparas, desperdicio) {

@@ -3,7 +3,7 @@ import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
 import { fatorCorrecaoItem } from '../utils/analise';
-import { fmtNum } from '../utils/formatters';
+import { fmtNum, hoje, fmtHora } from '../utils/formatters';
 
 // Sem histórico de compras/aparas do item, parte de 0% — o usuário ajusta se souber a perda real
 const CORRECAO_PADRAO = 0;
@@ -59,7 +59,7 @@ function ModalFicha({ ficha, onSalvar, onFechar }) {
 }
 
 export default function Fichas() {
-  const { fichas, setFichas, compras, aparas, desperdicio } = useApp();
+  const { fichas, setFichas, compras, addCompra, aparas, desperdicio, prefs } = useApp();
   const { toast, confirm } = useUI();
   const [tab, setTab] = useState('planejar');
   const [fichaId, setFichaId] = useState('');
@@ -88,6 +88,24 @@ export default function Fichas() {
   const cruKg = servidoKg > 0 ? servidoKg / (1 - coccaoPct / 100) : 0;
   // 3) compra bruta = cru ÷ (1 − fator de correção de limpeza)
   const brutoKg = cruKg > 0 ? cruKg / (1 - correcaoPct / 100) : 0;
+
+  // Um toque: o resultado do planejamento vira registro de compra preenchido
+  const registrarCompraPlanejada = () => {
+    const ultima = [...compras]
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+      .find(c => (c.item || '').toLowerCase() === ficha.materiaPrima.toLowerCase() && (c.fornecedor || '').trim());
+    addCompra({
+      data: hoje(),
+      hora: fmtHora(),
+      item: ficha.materiaPrima,
+      quantidade: Math.round(brutoKg * 100) / 100,
+      unidade: 'kg',
+      fornecedor: ultima?.fornecedor || '',
+      responsavel: prefs.responsavel || '',
+      obs: `Planejado: ${fmtNum(nPorcoes)}× ${ficha.preparacao}`,
+    });
+    toast(`Compra de ${fmtNum(brutoKg)} kg de ${ficha.materiaPrima} registrada!${ultima ? ` Fornecedor: ${ultima.fornecedor}.` : ''}`, 'sucesso');
+  };
 
   const grupos = useMemo(() => {
     const m = {};
@@ -205,8 +223,12 @@ export default function Fichas() {
                 🛒 Compre <strong>{fmtNum(brutoKg)} kg</strong> de <strong>{ficha.materiaPrima}</strong> para servir{' '}
                 {fmtNum(servidoKg)} kg ({fmtNum(nPorcoes)} × {ficha.preparacao})
                 {coccaoPct > 0 && <> — o cozimento reduz {coccaoPct}% do peso</>}
-                , mais {correcaoPct.toFixed(1)}% de aparas/perdas na limpeza.
+                {correcaoPct > 0 && <>, mais {correcaoPct.toFixed(1)}% de aparas/perdas na limpeza</>}.
               </p>
+              <button onClick={registrarCompraPlanejada}
+                className="w-full bg-polo-gold text-polo-navy font-bold py-3 rounded-lg text-sm active:scale-[0.98] transition-transform">
+                🛒 Registrar esta compra ({fmtNum(brutoKg)} kg)
+              </button>
             </div>
           )}
         </div>
