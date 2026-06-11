@@ -10,7 +10,7 @@ import { validarDataRegistro } from '../utils/datas';
 import { planejarProducao } from '../utils/producao';
 
 export default function Producao() {
-  const { producoes, produtos, addEntrada, addSaida, calcEstoque, prefs, setPref } = useApp();
+  const { producoes, produtos, addEntrada, addSaida, calcEstoque, listaManual, setListaManual, prefs, setPref } = useApp();
   const { temPermissao } = useAuth();
   const { toast, confirm } = useUI();
 
@@ -172,6 +172,28 @@ export default function Producao() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none" />
             </div>
 
+            {plano.faltaAlgum && (
+              <button onClick={() => {
+                const faltantes = plano.itens.filter(i => i.abate && !i.suficiente && i.falta > 0);
+                if (!faltantes.length) return;
+                const novos = faltantes.map(i => {
+                  const p = produtos.find(x => x.id === i.produtoId);
+                  return {
+                    id: `lm_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+                    produtoId: i.produtoId,
+                    nome: p?.nome || i.produtoId,
+                    unidade: p?.unidade || '',
+                    quantidade: i.falta,
+                    origem: `Produção: ${receita.nome}`,
+                  };
+                });
+                setListaManual([...listaManual, ...novos]);
+                toast(`${novos.length} item(ns) adicionado(s) à lista de compras.`, 'sucesso');
+              }}
+                className="w-full border-2 border-polo-gold text-polo-navy font-bold py-3 rounded-xl text-sm active:scale-95 transition-transform">
+                🧾 Adicionar faltantes à lista de compras
+              </button>
+            )}
             <button onClick={handleProduzir}
               className="w-full bg-polo-navy text-polo-gold font-bold py-4 rounded-xl text-base active:scale-95 transition-transform">
               ✓ Registrar Produção

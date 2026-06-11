@@ -11,7 +11,7 @@ import { BarrasEmpilhadas, Donut, LinhaDias, BarraRendimento } from '../componen
 const rotuloMotivo = (cod) => MOTIVOS_DESPERDICIO.find(m => m.cod === cod)?.label || cod;
 
 export default function Relatorio() {
-  const { produtos, compras, entradas, saidas, aparas, desperdicio, calcEstoque, categorias, destinos } = useApp();
+  const { produtos, compras, entradas, saidas, aparas, desperdicio, calcEstoque, categorias, destinos, locais } = useApp();
   // destinos criados pelo usuário em Config também precisam aparecer com o nome certo
   const rotuloDestino = (cod) =>
     destinos.find(d => d.cod === cod)?.label || DESTINOS_APARA.find(d => d.cod === cod)?.label || cod;
@@ -37,8 +37,13 @@ export default function Relatorio() {
 
   const totalEntradas = useMemo(() => totalPorProduto(entradasF), [entradasF]);
   const totalSaidas = useMemo(() => totalPorProduto(saidasF), [saidasF]);
-  const totalSaidasBeer = useMemo(() => totalPorProduto(saidasF.filter(s => s.destino === 'polo_beer')), [saidasF]);
-  const totalSaidasCentral = useMemo(() => totalPorProduto(saidasF.filter(s => s.destino === 'polo_central')), [saidasF]);
+  // Saídas por destino (genérico — usa o catálogo de locais editável).
+  // Saídas internas para "Produção" são excluídas (são consumo, não envio).
+  const totaisPorLocal = useMemo(() => {
+    const out = {};
+    (locais || []).forEach(l => { out[l.id] = totalPorProduto(saidasF.filter(s => s.destino === l.id)); });
+    return out;
+  }, [saidasF, locais]);
 
   // Análises
   const serieDias = useMemo(() => saidasPorDia(saidas, rIni, rFim), [saidas, rIni, rFim]);
@@ -88,28 +93,31 @@ export default function Relatorio() {
         ['Perdas no recebimento', totalPerdas - perdasEstoque],
       ], [38, 18]);
 
-      // 2. Movimentação por produto + estoque atual
-      const mov = [['Categoria', 'Produto', 'Un.', 'Entradas', 'Saídas Central', 'Saídas Beer', 'Saídas Total', 'Estoque Atual', 'Mín', 'Máx', 'Situação']];
+      // 2. Movimentação por produto + estoque atual (1 coluna de saída por destino)
+      const locaisAtivos = locais || [];
+      const movHeader = ['Categoria', 'Produto', 'Un.', 'Entradas',
+        ...locaisAtivos.map(l => `Saídas ${l.nome}`),
+        'Saídas Total', 'Estoque Atual', 'Mín', 'Máx', 'Situação'];
+      const mov = [movHeader];
       categorias.forEach(cat => {
         produtosAtivos.filter(p => p.categoria === cat).forEach(p => {
           const e = totalEntradas[p.id] || 0;
-          const sc = totalSaidasCentral[p.id] || 0;
-          const sb = totalSaidasBeer[p.id] || 0;
+          const porLocal = locaisAtivos.map(l => (totaisPorLocal[l.id] || {})[p.id] || 0);
           const st = totalSaidas[p.id] || 0;
           const atual = estoque[p.id] ?? 0;
           if (e || st || atual) {
             const status = statusEstoque(atual, p.min, p.max);
-            mov.push([cat, p.nome, p.unidade, e, sc, sb, st, atual, p.min, p.max,
+            mov.push([cat, p.nome, p.unidade, e, ...porLocal, st, atual, p.min, p.max,
               status === 'ok' ? 'OK' : status === 'critico' ? 'ABAIXO DO MÍNIMO' : status === 'zerado' ? 'ZERADO' : status === 'excesso' ? 'ACIMA DO MÁXIMO' : '—']);
           }
         });
       });
-      sheet('Movimentação', mov, [16, 26, 6, 10, 14, 12, 12, 13, 8, 8, 18]);
+      sheet('Movimentação', mov, [16, 26, 6, 10, ...locaisAtivos.map(() => 12), 12, 13, 8, 8, 18]);
 
-      // 3. Saídas por dia
-      const dias = [['Data', 'Polo Central', 'Polo Beer', 'Total']];
-      serieDias.forEach(d => dias.push([fmtData(d.data), d.central, d.beer, d.total]));
-      sheet('Saídas por Dia', dias, [12, 14, 12, 10]);
+      // 3. Saídas por dia (totais — drill-down por destino fica na aba Movimentação)
+      const dias = [['Data', 'Saídas (total)']];
+      serieDias.forEach(d => dias.push([fmtData(d.data), d.total]));
+      sheet('Saídas por Dia', dias, [12, 14]);
 
       // 4. Compras & rendimento por fornecedor
       const cmp = [['Data', 'Fornecedor', 'Item', 'Qtd Bruta', 'Un.', 'Responsável']];
@@ -265,28 +273,35 @@ export default function Relatorio() {
             <tr className="bg-gray-50 text-gray-500">
               <th className="text-left px-4 py-2 font-semibold">Produto</th>
               <th className="text-right px-2 py-2 font-semibold text-green-700">Entradas</th>
-              <th className="text-right px-2 py-2 font-semibold text-blue-700">Polo C.</th>
-              <th className="text-right px-2 py-2 font-semibold text-red-500">Polo B.</th>
+              {(locais || []).map(l => (
+                <th key={l.id} className="text-right px-2 py-2 font-semibold text-blue-700"
+                  title={`Saídas para ${l.nome}`}>{l.nome}</th>
+              ))}
               <th className="text-right px-4 py-2 font-semibold">Estoque</th>
             </tr>
           </thead>
           <tbody>
             {categorias.map(cat => {
+              const colCount = 3 + (locais?.length || 0);
               const linhas = produtosAtivos
                 .filter(p => p.categoria === cat)
-                .map(p => ({ p, e: totalEntradas[p.id] || 0, sc: totalSaidasCentral[p.id] || 0, sb: totalSaidasBeer[p.id] || 0 }))
-                .filter(l => l.e > 0 || l.sc > 0 || l.sb > 0);
+                .map(p => {
+                  const porLocal = (locais || []).map(l => (totaisPorLocal[l.id] || {})[p.id] || 0);
+                  return { p, e: totalEntradas[p.id] || 0, porLocal };
+                })
+                .filter(l => l.e > 0 || l.porLocal.some(v => v > 0));
               if (!linhas.length) return null;
               return [
                 <tr key={cat} className="bg-gray-50/60">
-                  <td colSpan={5} className="px-4 py-1.5 font-bold text-gray-500 text-[10px] uppercase tracking-wide">{cat}</td>
+                  <td colSpan={colCount} className="px-4 py-1.5 font-bold text-gray-500 text-[10px] uppercase tracking-wide">{cat}</td>
                 </tr>,
-                ...linhas.map(({ p, e, sc, sb }) => (
+                ...linhas.map(({ p, e, porLocal }) => (
                   <tr key={p.id} className="border-t border-gray-50">
                     <td className="px-4 py-1.5 text-gray-800">{p.nome}</td>
                     <td className="px-2 py-1.5 text-right text-green-700">{e ? `+${fmtNum(e)}` : '—'}</td>
-                    <td className="px-2 py-1.5 text-right text-blue-700">{sc ? `−${fmtNum(sc)}` : '—'}</td>
-                    <td className="px-2 py-1.5 text-right text-red-500">{sb ? `−${fmtNum(sb)}` : '—'}</td>
+                    {porLocal.map((v, i) => (
+                      <td key={i} className="px-2 py-1.5 text-right text-blue-700">{v ? `−${fmtNum(v)}` : '—'}</td>
+                    ))}
                     <td className="px-4 py-1.5 text-right font-semibold text-gray-700">{fmtNum(estoque[p.id] ?? 0)}</td>
                   </tr>
                 )),

@@ -9,9 +9,10 @@ import { mediaDiariaSaidas, previsaoRuptura, listaDeCompras } from '../utils/ana
 import { diasAte } from '../utils/datas';
 import { calcLotes } from '../utils/lotes';
 import { fmtNum, fmtData, hoje } from '../utils/formatters';
+import CalculadoraProducao from '../components/CalculadoraProducao';
 
 export default function Dashboard() {
-  const { produtos, setProdutos, saidas, entradas, desperdicio, calcEstoque, categorias, prefs } = useApp();
+  const { produtos, setProdutos, saidas, entradas, desperdicio, calcEstoque, categorias, listaManual, prefs } = useApp();
   const { toast } = useUI();
   const navigate = useNavigate();
   const [catAtiva, setCatAtiva] = useState('TODOS');
@@ -96,12 +97,18 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Lista de compras automática */}
-      {lista.length > 0 && (
+      {/* Calculadora rápida de produção (apoio à equipe) */}
+      <CalculadoraProducao />
+
+      {/* Lista de compras (automática + manual) */}
+      {(lista.length > 0 || listaManual.length > 0) && (
         <button onClick={() => navigate('/compras', { state: { tab: 'lista' } })}
           className="w-full flex items-center justify-between bg-polo-navy text-white rounded-xl px-4 py-3 mb-4 active:scale-[0.99] transition-transform">
-          <span className="text-sm font-semibold">
-            🧾 Lista de compras pronta — <strong className="text-polo-gold">{lista.length} {lista.length === 1 ? 'item' : 'itens'}</strong> abaixo do mínimo
+          <span className="text-sm font-semibold text-left">
+            🧾 Lista de compras —
+            {lista.length > 0 && <> <strong className="text-polo-gold">{lista.length}</strong> abaixo do mín</>}
+            {lista.length > 0 && listaManual.length > 0 && ' + '}
+            {listaManual.length > 0 && <><strong className="text-polo-gold">{listaManual.length}</strong> manual{listaManual.length > 1 ? 'is' : ''}</>}
           </span>
           <span className="text-polo-gold text-lg">›</span>
         </button>

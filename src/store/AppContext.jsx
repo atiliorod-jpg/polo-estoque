@@ -16,6 +16,9 @@ const CAT = {
   fichas:     FICHAS_BASE,
   producoes:  [],
   locais:     [{ id: 'salao', nome: 'Salão' }], // destinos de saída (editáveis em Config)
+  // Itens adicionados manualmente à lista de compras (ex.: faltantes de uma
+  // produção planejada). Cada item: { id, nome, unidade, quantidade, origem }
+  listaManual: [],
   prefs:      { responsavel: '', turno: 'Manhã', destino: '' },
 };
 
@@ -50,6 +53,7 @@ export function AppProvider({ children }) {
   const [fichas,      setFichasRaw]      = useState(CAT.fichas);
   const [producoes,   setProducoesRaw]   = useState(CAT.producoes);
   const [locais,      setLocaisRaw]      = useState(CAT.locais);
+  const [listaManual, setListaManualRaw] = useState(CAT.listaManual);
   const [prefs,       setPrefsRaw]       = useState(CAT.prefs);
   const [compras,     setComprasRaw]     = useState([]);
   const [entradas,    setEntradasRaw]    = useState([]);
@@ -63,7 +67,7 @@ export function AppProvider({ children }) {
   const ridRef = useRef(rid); ridRef.current = rid;
   const sessaoRef = useRef(sessao); sessaoRef.current = sessao;
   const dadosRef = useRef({});
-  dadosRef.current = { produtos, categorias, pessoas, destinos, fichas, producoes, locais, prefs, compras, entradas, saidas, aparas, desperdicio, ajustes, auditoria };
+  dadosRef.current = { produtos, categorias, pessoas, destinos, fichas, producoes, locais, listaManual, prefs, compras, entradas, saidas, aparas, desperdicio, ajustes, auditoria };
 
   const nomeProduto = (id) => dadosRef.current.produtos.find(p => p.id === id)?.nome || id;
 
@@ -118,6 +122,7 @@ export function AppProvider({ children }) {
   const setFichas     = useCallback((v) => persistCatalogo('fichas',     setFichasRaw,     v), [persistCatalogo]);
   const setProducoes  = useCallback((v) => persistCatalogo('producoes',  setProducoesRaw,  v), [persistCatalogo]);
   const setLocais     = useCallback((v) => persistCatalogo('locais',     setLocaisRaw,     v), [persistCatalogo]);
+  const setListaManual = useCallback((v) => persistCatalogo('listaManual', setListaManualRaw, v), [persistCatalogo]);
 
   const setPref = useCallback((chave, valor) => {
     const r = ridRef.current;
@@ -250,7 +255,7 @@ export function AppProvider({ children }) {
       // sem sessão: volta aos valores padrão
       setProdutosRaw(CAT.produtos); setCategoriasRaw(CAT.categorias);
       setPessoasRaw(CAT.pessoas); setDestinosRaw(CAT.destinos);
-      setFichasRaw(CAT.fichas); setProducoesRaw(CAT.producoes); setLocaisRaw(CAT.locais); setPrefsRaw(CAT.prefs);
+      setFichasRaw(CAT.fichas); setProducoesRaw(CAT.producoes); setLocaisRaw(CAT.locais); setListaManualRaw(CAT.listaManual); setPrefsRaw(CAT.prefs);
       setComprasRaw([]); setEntradasRaw([]); setSaidasRaw([]);
       setAparasRaw([]); setDesperdicioRaw([]); setAjustesRaw([]); setAuditoriaRaw([]);
       return;
@@ -265,6 +270,7 @@ export function AppProvider({ children }) {
     setFichasRaw(cacheGet(rid, 'fichas', CAT.fichas));
     setProducoesRaw(cacheGet(rid, 'producoes', CAT.producoes));
     setLocaisRaw(cacheGet(rid, 'locais', CAT.locais));
+    setListaManualRaw(cacheGet(rid, 'listaManual', CAT.listaManual));
     // prefs = restaurante (nuvem) + aparelho (local), mescladas
     setPrefsRaw({ ...cacheGet(rid, 'prefs', CAT.prefs), ...cacheGet(rid, '_prefs_device', {}) });
     setComprasRaw(cacheGet(rid, 'compras', []));
@@ -320,6 +326,7 @@ export function AppProvider({ children }) {
       aplicaCat('fichas', setFichasRaw, CAT.fichas);
       aplicaCat('producoes', setProducoesRaw, CAT.producoes);
       aplicaCat('locais', setLocaisRaw, CAT.locais);
+      aplicaCat('listaManual', setListaManualRaw, CAT.listaManual);
       // prefs: parte do restaurante (nuvem) + parte do aparelho (local)
       const prefsNuvem = mapa['prefs'] !== undefined ? mapa['prefs'] : soRestaurante(CAT.prefs);
       if (mapa['prefs'] === undefined) {
@@ -358,7 +365,7 @@ export function AppProvider({ children }) {
     };
     const setterDoc = {
       produtos: setProdutosRaw, categorias: setCategoriasRaw, pessoas: setPessoasRaw,
-      destinos: setDestinosRaw, fichas: setFichasRaw, producoes: setProducoesRaw, locais: setLocaisRaw,
+      destinos: setDestinosRaw, fichas: setFichasRaw, producoes: setProducoesRaw, locais: setLocaisRaw, listaManual: setListaManualRaw,
     };
     const aplicaRegistroRT = (row) => {
       if (!row) return;
@@ -422,7 +429,7 @@ export function AppProvider({ children }) {
       versao: 3, exportadoEm: new Date().toISOString(),
       produtos: d.produtos, compras: d.compras, entradas: d.entradas, saidas: d.saidas,
       aparas: d.aparas, desperdicio: d.desperdicio, ajustes: d.ajustes, pessoas: d.pessoas,
-      fichas: d.fichas, producoes: d.producoes, locais: d.locais, destinos: d.destinos, categorias: d.categorias, auditoria: d.auditoria, prefs: d.prefs,
+      fichas: d.fichas, producoes: d.producoes, locais: d.locais, listaManual: d.listaManual, destinos: d.destinos, categorias: d.categorias, auditoria: d.auditoria, prefs: d.prefs,
     };
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -443,6 +450,7 @@ export function AppProvider({ children }) {
     cat('fichas', setFichasRaw, dados.fichas);
     cat('producoes', setProducoesRaw, dados.producoes);
     cat('locais', setLocaisRaw, dados.locais);
+    cat('listaManual', setListaManualRaw, dados.listaManual);
     cat('prefs', setPrefsRaw, dados.prefs);
 
     const r = ridRef.current;
@@ -476,6 +484,7 @@ export function AppProvider({ children }) {
       fichas, setFichas,
       producoes, setProducoes,
       locais, setLocais,
+      listaManual, setListaManual,
       destinos, setDestinos,
       categorias, setCategorias,
       auditoria, logAudit,

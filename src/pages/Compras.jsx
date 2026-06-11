@@ -10,7 +10,7 @@ import { validarDataRegistro } from '../utils/datas';
 import { listaDeCompras, fatorCorrecaoItem } from '../utils/analise';
 
 export default function Compras() {
-  const { compras, addCompra, removeCompra, restaurarRegistro, aparas, desperdicio, fichas, calcEstoque, produtos, categorias, prefs, setPref } = useApp();
+  const { compras, addCompra, removeCompra, restaurarRegistro, aparas, desperdicio, fichas, calcEstoque, produtos, categorias, listaManual, setListaManual, prefs, setPref } = useApp();
   const { temPermissao } = useAuth();
   const { toast, confirm } = useUI();
   const location = useLocation();
@@ -80,18 +80,23 @@ export default function Compras() {
   };
 
   const copiarLista = async () => {
-    const texto = [
-      `🧾 LISTA DE COMPRAS — ${fmtData(hoje())}`,
-      ...lista.map(({ p, atual, sugerido, kg }) =>
-        `• ${p.nome}: comprar ${fmtNum(sugerido)} ${p.unidade}${kg ? ` (≈ ${fmtNum(kg)} kg)` : ''} (tem ${fmtNum(atual)}, mín ${p.min})`),
-    ].join('\n');
+    const linhas = [`🧾 LISTA DE COMPRAS — ${fmtData(hoje())}`];
+    lista.forEach(({ p, atual, sugerido, kg }) =>
+      linhas.push(`• ${p.nome}: comprar ${fmtNum(sugerido)} ${p.unidade}${kg ? ` (≈ ${fmtNum(kg)} kg)` : ''} (tem ${fmtNum(atual)}, mín ${p.min})`));
+    if (listaManual.length) {
+      linhas.push('', '— Adicionados manualmente —');
+      listaManual.forEach(m => linhas.push(`• ${m.nome}: ${fmtNum(m.quantidade)} ${m.unidade}${m.origem ? ` (${m.origem})` : ''}`));
+    }
     try {
-      await navigator.clipboard.writeText(texto);
+      await navigator.clipboard.writeText(linhas.join('\n'));
       toast('Lista copiada! Cole onde precisar.', 'sucesso');
     } catch {
       toast('Não foi possível copiar automaticamente.', 'aviso');
     }
   };
+
+  const removerManual = (id) => setListaManual(listaManual.filter(m => m.id !== id));
+  const limparManuais = () => setListaManual([]);
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -289,9 +294,9 @@ export default function Compras() {
       {tab === 'lista' && (
         <div className="space-y-3">
           <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy">
-            Gerada automaticamente: produtos <strong>abaixo do estoque mínimo</strong>, com a quantidade sugerida para voltar ao máximo.
+            <strong>Automática:</strong> produtos abaixo do mínimo. <strong>Manual:</strong> itens adicionados ao planejar uma produção.
           </div>
-          {lista.length === 0 ? (
+          {lista.length === 0 && listaManual.length === 0 ? (
             <div className="bg-white rounded-xl p-8 text-center">
               <div className="text-3xl mb-2">✅</div>
               <p className="text-sm font-semibold text-gray-700">Nada para comprar!</p>
@@ -299,31 +304,58 @@ export default function Compras() {
             </div>
           ) : (
             <>
-              <div className="bg-white rounded-xl overflow-hidden">
-                <div className="bg-polo-navy px-4 py-2.5 flex justify-between items-center">
-                  <h2 className="text-polo-gold text-sm font-bold">Lista de Compras — {fmtData(hoje())}</h2>
-                  <span className="text-white/70 text-xs">{lista.length} itens</span>
-                </div>
-                {lista.map(({ p, atual, sugerido, kg }, i) => (
-                  <div key={p.id} className={`flex items-center justify-between px-4 py-3 ${i < lista.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                    <div>
-                      <div className="font-medium text-sm text-gray-800">{p.nome}</div>
-                      <div className="text-xs text-gray-500">
-                        tem <span className={atual <= 0 ? 'text-red-600 font-bold' : 'font-semibold'}>{fmtNum(atual)}</span> • mín {p.min} • máx {p.max || '—'}
-                      </div>
-                      {p.unidade === 'unid' && !kg && (
-                        <div className="text-[10px] text-amber-600">⚖️ cadastre o peso por unidade (Config → produto) p/ ver em kg</div>
-                      )}
-                    </div>
-                    <div className="text-right flex-shrink-0 ml-2">
-                      <span className="font-bold text-polo-navy text-sm bg-polo-beige px-3 py-1.5 rounded-lg block">
-                        {fmtNum(sugerido)} {p.unidade}
-                      </span>
-                      {kg && <span className="text-xs font-bold text-polo-navy mt-1 block">≈ {fmtNum(kg)} kg</span>}
-                    </div>
+              {lista.length > 0 && (
+                <div className="bg-white rounded-xl overflow-hidden">
+                  <div className="bg-polo-navy px-4 py-2.5 flex justify-between items-center">
+                    <h2 className="text-polo-gold text-sm font-bold">Automática (abaixo do mínimo)</h2>
+                    <span className="text-white/70 text-xs">{lista.length} itens</span>
                   </div>
-                ))}
-              </div>
+                  {lista.map(({ p, atual, sugerido, kg }, i) => (
+                    <div key={p.id} className={`flex items-center justify-between px-4 py-3 ${i < lista.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                      <div>
+                        <div className="font-medium text-sm text-gray-800">{p.nome}</div>
+                        <div className="text-xs text-gray-500">
+                          tem <span className={atual <= 0 ? 'text-red-600 font-bold' : 'font-semibold'}>{fmtNum(atual)}</span> • mín {p.min} • máx {p.max || '—'}
+                        </div>
+                        {p.unidade === 'unid' && !kg && (
+                          <div className="text-[10px] text-amber-600">⚖️ cadastre o peso por unidade (Config → produto) p/ ver em kg</div>
+                        )}
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <span className="font-bold text-polo-navy text-sm bg-polo-beige px-3 py-1.5 rounded-lg block">
+                          {fmtNum(sugerido)} {p.unidade}
+                        </span>
+                        {kg && <span className="text-xs font-bold text-polo-navy mt-1 block">≈ {fmtNum(kg)} kg</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {listaManual.length > 0 && (
+                <div className="bg-white rounded-xl overflow-hidden">
+                  <div className="bg-polo-gold px-4 py-2.5 flex justify-between items-center">
+                    <h2 className="text-polo-navy text-sm font-bold">Adicionados manualmente</h2>
+                    <button onClick={limparManuais} className="text-polo-navy/70 text-xs font-semibold">Limpar</button>
+                  </div>
+                  {listaManual.map((m, i, arr) => (
+                    <div key={m.id} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm text-gray-800 truncate">{m.nome}</div>
+                        {m.origem && <div className="text-[10px] text-amber-700">{m.origem}</div>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        <span className="font-bold text-polo-navy text-sm bg-polo-beige px-3 py-1.5 rounded-lg">
+                          {fmtNum(m.quantidade)} {m.unidade}
+                        </span>
+                        <button onClick={() => removerManual(m.id)} aria-label={`Remover ${m.nome}`}
+                          className="text-red-400 font-bold text-lg w-6">×</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <button onClick={copiarLista}
                   className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl text-sm">
