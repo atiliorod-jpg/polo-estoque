@@ -10,11 +10,10 @@ import { validarDataRegistro } from '../utils/datas';
 import { planejarProducao } from '../utils/producao';
 
 export default function Producao() {
-  const { producoes, produtos, addEntrada, addSaida, entradas, calcEstoque, prefs, setPref } = useApp();
+  const { producoes, produtos, addEntrada, addSaida, calcEstoque, prefs, setPref } = useApp();
   const { temPermissao } = useAuth();
   const { toast, confirm } = useUI();
 
-  const [tab, setTab] = useState('produzir');
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
   const [receitaId, setReceitaId] = useState(producoes[0]?.id || '');
@@ -35,20 +34,25 @@ export default function Producao() {
     const pid = `prc_${Date.now()}`;
     const qtdFinal = alvoNum || parseFloat(receita.rendimentoBase) || 0;
     const obsTxt = `Produção: ${receita.nome}${obs ? ` — ${obs}` : ''}`;
-    // 1) abate os ingredientes do estoque (saída interna de produção)
-    addSaida({
-      data, hora: fmtHora(), responsavel, destino: 'producao', producaoId: pid, obs: obsTxt,
-      itens: plano.itens.filter(i => i.quantidade > 0).map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade })),
-    });
-    // 2) dá entrada no produto final produzido
+    // ingredientes que ABATEM do estoque (frios/proteínas controlados)
+    const abateItens = plano.itens.filter(i => i.abate && i.produtoId && i.quantidade > 0)
+      .map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade }));
+    // ingredientes SÓ monitorados (estoque seco): registrados, sem baixa
+    const monitorados = plano.itens.filter(i => !i.abate && i.quantidade > 0)
+      .map(i => ({ nome: i.nome, unidade: i.unidade || '', quantidade: i.quantidade }));
+    // 1) saída interna de produção SÓ dos itens controlados
+    if (abateItens.length) {
+      addSaida({ data, hora: fmtHora(), responsavel, destino: 'producao', producaoId: pid, obs: obsTxt, itens: abateItens });
+    }
+    // 2) dá entrada no produto final produzido (guarda os monitorados junto)
     addEntrada({
       data, hora: fmtHora(), responsavel, armazenamento, producaoId: pid, obs: obsTxt,
+      monitorados,
       itens: [{ produtoId: finalId, quantidade: qtdFinal }],
     });
     if (responsavel) setPref('responsavel', responsavel);
     setAlvo(''); setObs('');
     toast(`Produção registrada: ${fmtNum(qtdFinal)} ${prodUnid(finalId)} de ${prodNome(finalId)}!`, 'sucesso');
-    setTab('historico');
   };
 
   const handleProduzir = async () => {
@@ -74,26 +78,11 @@ export default function Producao() {
     registrar();
   };
 
-  // histórico de produções = entradas marcadas com producaoId
-  const historico = entradas.filter(e => e.producaoId)
-    .sort((a, b) => b.data.localeCompare(a.data) || (b.hora || '').localeCompare(a.hora || ''));
-
   const semReceitas = producoes.length === 0;
 
   return (
     <Layout title="Produção">
-      <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
-        {[['produzir', '🍲 Produzir'], ['historico', '📋 Histórico']].map(([v, l]) => (
-          <button key={v} onClick={() => setTab(v)}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors
-              ${tab === v ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'produzir' ? (
-        semReceitas ? (
+      {semReceitas ? (
           <div className="bg-white rounded-xl p-6 text-center space-y-2">
             <p className="text-3xl">🍲</p>
             <p className="font-semibold text-polo-navy">Nenhuma receita de produção ainda</p>
@@ -156,15 +145,22 @@ export default function Producao() {
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide px-4 pt-3">Ingredientes necessários</p>
               {plano.itens.length === 0 && <p className="text-sm text-gray-400 px-4 py-3">Esta receita não tem ingredientes cadastrados.</p>}
               {plano.itens.map((i, idx, arr) => (
-                <div key={i.produtoId} className={`flex items-center justify-between px-4 py-3 ${idx < arr.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                <div key={idx} className={`flex items-center justify-between px-4 py-3 ${idx < arr.length - 1 ? 'border-b border-gray-100' : ''}`}>
                   <div className="min-w-0">
-                    <div className="font-medium text-sm text-gray-800 truncate">{prodNome(i.produtoId)}</div>
-                    <div className="text-xs text-gray-500">
-                      Em estoque: <span className={i.suficiente ? 'text-gray-600 font-semibold' : 'text-red-500 font-semibold'}>{fmtNum(i.emEstoque)} {prodUnid(i.produtoId)}</span>
-                      {!i.suficiente && <span className="text-red-500 font-semibold"> • falta {fmtNum(i.falta)}</span>}
+                    <div className="font-medium text-sm text-gray-800 truncate">
+                      {i.abate ? prodNome(i.produtoId) : i.nome}
+                      {!i.abate && <span className="ml-1.5 text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">só monitora</span>}
                     </div>
+                    {i.abate ? (
+                      <div className="text-xs text-gray-500">
+                        Em estoque: <span className={i.suficiente ? 'text-gray-600 font-semibold' : 'text-red-500 font-semibold'}>{fmtNum(i.emEstoque)} {prodUnid(i.produtoId)}</span>
+                        {!i.suficiente && <span className="text-red-500 font-semibold"> • falta {fmtNum(i.falta)}</span>}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400">Estoque seco — não dá baixa</div>
+                    )}
                   </div>
-                  <div className="text-sm font-bold text-polo-navy whitespace-nowrap">{fmtNum(i.quantidade)} {prodUnid(i.produtoId)}</div>
+                  <div className="text-sm font-bold text-polo-navy whitespace-nowrap">{fmtNum(i.quantidade)} {i.abate ? prodUnid(i.produtoId) : (i.unidade || '')}</div>
                 </div>
               ))}
             </div>
@@ -185,29 +181,7 @@ export default function Producao() {
             </p>
           </div>
         )
-      ) : (
-        <div className="space-y-3">
-          {historico.length === 0 && <div className="text-center text-gray-500 py-12">Nenhuma produção registrada ainda.</div>}
-          {historico.map(e => (
-            <div key={e.id} className="bg-white rounded-xl p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-semibold text-sm">{fmtData(e.data)} {e.hora && `• ${e.hora}`}</div>
-                  {e.responsavel && <div className="text-xs text-gray-500">Por: {e.responsavel}</div>}
-                </div>
-                <div className="text-right">
-                  {(e.itens || []).map(it => (
-                    <div key={it.produtoId} className="text-sm font-bold text-green-700">
-                      +{fmtNum(it.quantidade)} {prodUnid(it.produtoId)} {prodNome(it.produtoId)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {e.obs && <p className="text-xs text-gray-500 mt-2 italic">{e.obs}</p>}
-            </div>
-          ))}
-        </div>
-      )}
+      }
     </Layout>
   );
 }

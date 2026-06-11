@@ -110,16 +110,6 @@ export default function AparasPerdas() {
 
   return (
     <Layout title="Aparas & Perdas">
-      <div className="flex bg-white rounded-xl mb-3 p-1 gap-1">
-        {[['novo', '+ Registrar'], ['historico', '📋 Histórico']].map(([v, l]) => (
-          <button key={v} onClick={() => setTab(v)}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors
-              ${tab === v ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
       {tab === 'novo' ? (
         <div className="space-y-4">
           {/* Tipo: Apara ou Perda */}

@@ -37,6 +37,13 @@ const PATHS = {
       <path d="M14.8 14.8 20 20" />
     </>
   ),
+  registrar: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 12h8" />
+      <path d="M12 8v8" />
+    </>
+  ),
   producao: (
     <>
       <path d="M2 12h20" />

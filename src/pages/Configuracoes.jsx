@@ -252,7 +252,7 @@ function ModalProducao({ receita, produtos, onSalvar, onFechar }) {
   const ativos = produtos.filter(p => p.ativo);
   const [form, setForm] = useState(receita || {
     nome: '', produtoFinalId: ativos[0]?.id || '', rendimentoBase: '', armazenamento: 'congelado',
-    ingredientes: [{ produtoId: '', quantidade: '' }],
+    ingredientes: [{ abate: true, produtoId: '', quantidade: '' }],
   });
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
   const setIng = (i, k, v) => setForm(prev => {
@@ -260,19 +260,20 @@ function ModalProducao({ receita, produtos, onSalvar, onFechar }) {
     ing[i] = { ...ing[i], [k]: v };
     return { ...prev, ingredientes: ing };
   });
-  const addIng = () => setForm(prev => ({ ...prev, ingredientes: [...prev.ingredientes, { produtoId: '', quantidade: '' }] }));
+  const addIng = () => setForm(prev => ({ ...prev, ingredientes: [...prev.ingredientes, { abate: true, produtoId: '', quantidade: '' }] }));
   const removeIng = (i) => setForm(prev => ({ ...prev, ingredientes: prev.ingredientes.filter((_, x) => x !== i) }));
   const unid = (id) => produtos.find(p => p.id === id)?.unidade || '';
 
+  const ingValido = (i) => parseFloat(i.quantidade) > 0 && (i.abate ? !!i.produtoId : !!(i.nome || '').trim());
   const valido = form.nome.trim() && form.produtoFinalId && parseFloat(form.rendimentoBase) > 0
-    && form.ingredientes.some(i => i.produtoId && parseFloat(i.quantidade) > 0);
+    && form.ingredientes.some(ingValido);
 
   const salvar = () => onSalvar({
     ...form,
     rendimentoBase: parseFloat(form.rendimentoBase) || 0,
-    ingredientes: form.ingredientes
-      .filter(i => i.produtoId && parseFloat(i.quantidade) > 0)
-      .map(i => ({ produtoId: i.produtoId, quantidade: parseFloat(i.quantidade) })),
+    ingredientes: form.ingredientes.filter(ingValido).map(i => i.abate
+      ? { abate: true, produtoId: i.produtoId, quantidade: parseFloat(i.quantidade) }
+      : { abate: false, nome: (i.nome || '').trim(), unidade: (i.unidade || '').trim(), quantidade: parseFloat(i.quantidade) }),
   });
 
   return (
@@ -316,19 +317,39 @@ function ModalProducao({ receita, produtos, onSalvar, onFechar }) {
             <label className="text-xs font-semibold text-gray-600">Ingredientes (para o rendimento acima)</label>
             <button onClick={addIng} className="text-xs font-bold text-polo-navy bg-gray-100 px-2 py-1 rounded">+ Ingrediente</button>
           </div>
+          <p className="text-[11px] text-gray-500 mb-2">
+            <strong>Abater do estoque</strong> = item controlado (frios/proteínas), dá baixa de verdade.
+            <strong> Só monitorar</strong> = item do estoque seco, só registra o uso (sem baixa).
+          </p>
           <div className="space-y-2">
             {form.ingredientes.map((ing, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <select value={ing.produtoId} onChange={e => setIng(i, 'produtoId', e.target.value)}
-                  className="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white min-w-0">
-                  <option value="">Ingrediente…</option>
-                  {ativos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-                <input type="number" min="0" step="0.1" value={ing.quantidade} onChange={e => setIng(i, 'quantidade', e.target.value)}
-                  placeholder="Qtd" className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm" />
-                <span className="text-xs text-gray-400 w-8">{unid(ing.produtoId)}</span>
-                <button onClick={() => removeIng(i)} aria-label="Remover ingrediente"
-                  className="text-red-400 font-bold text-lg w-7 flex-shrink-0">×</button>
+              <div key={i} className="border border-gray-100 rounded-lg p-2 space-y-2">
+                <div className="flex gap-2 items-center">
+                  <select value={ing.abate ? 'sim' : 'nao'} onChange={e => setIng(i, 'abate', e.target.value === 'sim')}
+                    className="border border-gray-200 rounded-lg px-2 py-2 text-xs bg-white">
+                    <option value="sim">Abater estoque</option>
+                    <option value="nao">Só monitorar</option>
+                  </select>
+                  <input type="number" min="0" step="0.1" value={ing.quantidade} onChange={e => setIng(i, 'quantidade', e.target.value)}
+                    placeholder="Qtd" className="w-16 border border-gray-200 rounded-lg px-2 py-2 text-sm" />
+                  <span className="text-xs text-gray-400 flex-1">{ing.abate ? unid(ing.produtoId) : (ing.unidade || 'un')}</span>
+                  <button onClick={() => removeIng(i)} aria-label="Remover ingrediente"
+                    className="text-red-400 font-bold text-lg w-6 flex-shrink-0">×</button>
+                </div>
+                {ing.abate ? (
+                  <select value={ing.produtoId || ''} onChange={e => setIng(i, 'produtoId', e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white">
+                    <option value="">Escolha o produto controlado…</option>
+                    {ativos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  </select>
+                ) : (
+                  <div className="flex gap-2">
+                    <input type="text" value={ing.nome || ''} onChange={e => setIng(i, 'nome', e.target.value)}
+                      placeholder="Nome do ingrediente (ex: Tempero)" className="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm" />
+                    <input type="text" value={ing.unidade || ''} onChange={e => setIng(i, 'unidade', e.target.value)}
+                      placeholder="un" className="w-16 border border-gray-200 rounded-lg px-2 py-2 text-sm" />
+                  </div>
+                )}
               </div>
             ))}
           </div>

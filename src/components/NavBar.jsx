@@ -6,11 +6,8 @@ import Icon from './Icons';
 
 const NAV = [
   { to: '/',             icon: 'inicio',    label: 'Início' },
-  { to: '/compras',      icon: 'compras',   label: 'Compras' },
-  { to: '/entradas',     icon: 'entradas',  label: 'Entradas' },
-  { to: '/saidas',       icon: 'saidas',    label: 'Saídas' },
-  { to: '/producao',     icon: 'producao',  label: 'Produção' },
-  { to: '/aparas',       icon: 'correcoes', label: 'Correções' },
+  { to: '/registrar',    icon: 'registrar', label: 'Registrar' },
+  { to: '/historico',    icon: 'historico', label: 'Histórico' },
   { to: '/relatorio',    icon: 'relatorio', label: 'Relatório', cargo: 'gerencia' },
   { to: '/configuracoes',icon: 'config',    label: 'Config.', cargo: 'gerencia' },
 ];

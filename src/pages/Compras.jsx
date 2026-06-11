@@ -163,7 +163,6 @@ export default function Compras() {
             ['planejar', '🧮 Planejar'],
             ['lista', `🧾 Lista${lista.length ? ` (${lista.length})` : ''}`],
           ] : []),
-          ['historico', '📋 Histórico'],
         ].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
             className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors

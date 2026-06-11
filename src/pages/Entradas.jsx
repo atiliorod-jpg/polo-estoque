@@ -80,17 +80,6 @@ export default function Entradas() {
 
   return (
     <Layout title="Entradas de Produção">
-      {/* Tabs */}
-      <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
-        {[['novo', '+ Nova Entrada'], ['historico', '📋 Histórico']].map(([v, l]) => (
-          <button key={v} onClick={() => setTab(v)}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors
-              ${tab === v ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
       {tab === 'novo' ? (
         <div className="space-y-4">
           {/* Cabeçalho */}

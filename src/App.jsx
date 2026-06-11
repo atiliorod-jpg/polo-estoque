@@ -5,6 +5,8 @@ import { UIProvider } from './store/UIContext';
 import Login from './pages/Login';
 import NovaSenha from './pages/NovaSenha';
 import Dashboard from './pages/Dashboard';
+import Registrar from './pages/Registrar';
+import Historico from './pages/Historico';
 import Compras from './pages/Compras';
 import Entradas from './pages/Entradas';
 import Saidas from './pages/Saidas';
@@ -57,6 +59,8 @@ function Rotas() {
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/registrar" element={<Registrar />} />
+        <Route path="/historico" element={<Historico />} />
         <Route path="/compras" element={<Compras />} />
         <Route path="/entradas" element={<Entradas />} />
         <Route path="/saidas" element={<Saidas />} />

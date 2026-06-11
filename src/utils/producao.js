@@ -1,27 +1,38 @@
-// Lógica das Fichas de Produção (receitas): produtos que são PRODUZIDOS a
-// partir de vários ingredientes (molhos, caldos, refogados…), com rendimento.
+// Lógica das Fichas de Produção (receitas): produtos PRODUZIDOS a partir de
+// vários ingredientes (molhos, caldos, refogados…), com rendimento.
 //
-// Uma receita guarda os ingredientes para um "lote padrão" que rende
-// `rendimentoBase` do produto final. Para produzir uma quantidade-alvo,
-// escala tudo proporcionalmente — mesma ideia do planejador de compras.
+// Cada ingrediente da receita pode ser:
+//  • abate: true  → é um produto controlado (frios/proteínas) e dá baixa no estoque
+//  • abate: false → vem do estoque seco (não controlado aqui): SÓ monitora o uso,
+//                   não dá baixa. Guarda { nome, unidade } livres.
+//
+// A receita guarda os ingredientes para um "lote padrão" que rende
+// `rendimentoBase` do produto final; produzir escala proporcionalmente.
 
-// Quanto de cada ingrediente é preciso para produzir `alvo` do produto final.
+const arred = (v) => Math.round((parseFloat(v) || 0) * 1000) / 1000;
+
+// Quanto de cada ingrediente para produzir `alvo` do produto final.
 export function ingredientesParaProduzir(receita, alvo) {
   const base = parseFloat(receita?.rendimentoBase) || 0;
   const fator = base > 0 ? (parseFloat(alvo) || 0) / base : 0;
   return (receita?.ingredientes || []).map(i => ({
-    produtoId: i.produtoId,
-    quantidade: Math.round((parseFloat(i.quantidade) || 0) * fator * 1000) / 1000,
+    ...i,
+    abate: i.abate !== false, // padrão antigo (sem o campo) = abate
+    quantidade: arred((parseFloat(i.quantidade) || 0) * fator),
   }));
 }
 
-// Junta a necessidade com o estoque atual: o que tem e o que falta.
+// Junta a necessidade com o estoque atual. Só os ingredientes que abatem
+// estoque entram na checagem de falta; os monitorados são só informativos.
 // estoque = { [produtoId]: quantidadeAtual }
 export function planejarProducao(receita, alvo, estoque = {}) {
   const itens = ingredientesParaProduzir(receita, alvo).map(i => {
-    const emEstoque = parseFloat(estoque[i.produtoId]) || 0;
-    const falta = Math.max(0, Math.round((i.quantidade - emEstoque) * 1000) / 1000);
-    return { ...i, emEstoque, falta, suficiente: emEstoque >= i.quantidade };
+    if (i.abate && i.produtoId) {
+      const emEstoque = parseFloat(estoque[i.produtoId]) || 0;
+      const falta = Math.max(0, arred(i.quantidade - emEstoque));
+      return { ...i, emEstoque, falta, suficiente: emEstoque >= i.quantidade };
+    }
+    return { ...i, monitor: true };
   });
-  return { itens, faltaAlgum: itens.some(i => !i.suficiente) };
+  return { itens, faltaAlgum: itens.some(i => i.abate && i.produtoId && !i.suficiente) };
 }
