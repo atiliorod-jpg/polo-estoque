@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Compras from './pages/Compras';
 import Entradas from './pages/Entradas';
 import Saidas from './pages/Saidas';
+import Producao from './pages/Producao';
 import Inventario from './pages/Inventario';
 import AparasPerdas from './pages/AparasPerdas';
 import Relatorio from './pages/Relatorio';
@@ -59,6 +60,7 @@ function Rotas() {
         <Route path="/compras" element={<Compras />} />
         <Route path="/entradas" element={<Entradas />} />
         <Route path="/saidas" element={<Saidas />} />
+        <Route path="/producao" element={<Producao />} />
         <Route path="/aparas" element={<AparasPerdas />} />
         <Route path="/desperdicio" element={<Navigate to="/aparas" replace />} />
         <Route path="/fichas" element={<Navigate to="/compras" replace />} />

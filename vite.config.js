@@ -14,9 +14,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Polo Estoque — Produção',
-        short_name: 'Polo Estoque',
-        description: 'Controle de estoque da produção — Polo Central e Polo Beer',
+        name: 'Aurum Cozinha Pro',
+        short_name: 'Aurum Cozinha',
+        description: 'Controle de produção de cozinha — Aurum',
         start_url: base,
         scope: base,
         display: 'standalone',

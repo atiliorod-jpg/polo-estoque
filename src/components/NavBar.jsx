@@ -9,6 +9,7 @@ const NAV = [
   { to: '/compras',      icon: 'compras',   label: 'Compras' },
   { to: '/entradas',     icon: 'entradas',  label: 'Entradas' },
   { to: '/saidas',       icon: 'saidas',    label: 'Saídas' },
+  { to: '/producao',     icon: 'producao',  label: 'Produção' },
   { to: '/aparas',       icon: 'correcoes', label: 'Correções' },
   { to: '/relatorio',    icon: 'relatorio', label: 'Relatório', cargo: 'gerencia' },
   { to: '/configuracoes',icon: 'config',    label: 'Config.', cargo: 'gerencia' },

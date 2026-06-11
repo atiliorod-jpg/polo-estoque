@@ -73,3 +73,15 @@ export const PRODUTOS_INICIAIS = [
   { id: 'macarrao_yaki', nome: 'Macarrão Yakisoba', categoria: 'FRIOS / DIVERSOS', unidade: 'kg', min: 5, max: 10, ativo: true },
   { id: 'verduras_yaki', nome: 'Verduras Yakisoba', categoria: 'FRIOS / DIVERSOS', unidade: 'kg', min: 5, max: 10, ativo: true },
 ];
+
+// ── Base "de fábrica" (o que um restaurante NOVO recebe ao se cadastrar) ──
+// Enxuta e genérica, com poucos exemplos para o cliente entender o padrão e
+// editar. A montagem completa do Polo fica em data/presetPolo.js (importável).
+export const CATEGORIAS_BASE = ['PROTEÍNAS', 'PRODUZIDOS', 'DIVERSOS'];
+
+export const PESSOAS_BASE = [];
+
+export const PRODUTOS_BASE = [
+  { id: 'ex_proteina', nome: 'Filé (exemplo — edite ou apague)', categoria: 'PROTEÍNAS', unidade: 'kg', min: 0, max: 0, ativo: true },
+  { id: 'ex_produzido', nome: 'Molho da casa (exemplo — produzido)', categoria: 'PRODUZIDOS', unidade: 'L', min: 0, max: 0, ativo: true },
+];

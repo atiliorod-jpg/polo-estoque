@@ -70,7 +70,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <img src={`${import.meta.env.BASE_URL}logo-aurum.png`} alt="Aurum Serviços Gastronômicos"
             className="w-32 h-32 mx-auto rounded-3xl ring-1 ring-polo-gold/30 shadow-2xl object-cover mb-5" />
-          <h1 className="text-2xl font-bold text-polo-gold">Polo Estoque</h1>
+          <h1 className="text-2xl font-bold text-polo-gold">Aurum Cozinha Pro</h1>
           <p className="text-white/50 text-sm mt-1">Controle de produção na nuvem</p>
         </div>
 

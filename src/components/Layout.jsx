@@ -21,7 +21,12 @@ export default function Layout({ title, children, actions }) {
         <div className="flex items-center gap-2.5 min-w-0">
           <img src={LOGO} alt="Aurum Serviços Gastronômicos"
             className="w-9 h-9 rounded-xl ring-1 ring-polo-gold/40 object-cover flex-shrink-0" />
-          <h1 className="text-base font-bold text-polo-gold tracking-wide truncate">{title}</h1>
+          <div className="min-w-0 leading-tight">
+            <h1 className="text-base font-bold text-polo-gold tracking-wide truncate">{title}</h1>
+            {sessao?.restauranteNome && (
+              <p className="text-[10px] text-white/50 truncate">{sessao.restauranteNome}</p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {actions}

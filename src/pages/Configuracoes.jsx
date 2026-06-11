@@ -6,6 +6,8 @@ import { useAuth, CARGOS } from '../store/AuthContext';
 import { useUI } from '../store/UIContext';
 import NovaSenha from './NovaSenha';
 import { calcSugestoesMinMax, DIAS_MIN, DIAS_MAX } from '../utils/sugestoes';
+import { fmtNum } from '../utils/formatters';
+import { POLO_PRESET } from '../data/presetPolo';
 
 // Campos numéricos ficam como texto enquanto edita (apagar/limpar funciona);
 // a conversão para número acontece só no salvar.
@@ -246,10 +248,105 @@ function ModalFicha({ ficha, fichas, categorias, onSalvar, onFechar }) {
   );
 }
 
+function ModalProducao({ receita, produtos, onSalvar, onFechar }) {
+  const ativos = produtos.filter(p => p.ativo);
+  const [form, setForm] = useState(receita || {
+    nome: '', produtoFinalId: ativos[0]?.id || '', rendimentoBase: '', armazenamento: 'congelado',
+    ingredientes: [{ produtoId: '', quantidade: '' }],
+  });
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const setIng = (i, k, v) => setForm(prev => {
+    const ing = [...prev.ingredientes];
+    ing[i] = { ...ing[i], [k]: v };
+    return { ...prev, ingredientes: ing };
+  });
+  const addIng = () => setForm(prev => ({ ...prev, ingredientes: [...prev.ingredientes, { produtoId: '', quantidade: '' }] }));
+  const removeIng = (i) => setForm(prev => ({ ...prev, ingredientes: prev.ingredientes.filter((_, x) => x !== i) }));
+  const unid = (id) => produtos.find(p => p.id === id)?.unidade || '';
+
+  const valido = form.nome.trim() && form.produtoFinalId && parseFloat(form.rendimentoBase) > 0
+    && form.ingredientes.some(i => i.produtoId && parseFloat(i.quantidade) > 0);
+
+  const salvar = () => onSalvar({
+    ...form,
+    rendimentoBase: parseFloat(form.rendimentoBase) || 0,
+    ingredientes: form.ingredientes
+      .filter(i => i.produtoId && parseFloat(i.quantidade) > 0)
+      .map(i => ({ produtoId: i.produtoId, quantidade: parseFloat(i.quantidade) })),
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto overscroll-contain p-4 flex">
+      <div className="bg-white w-full max-w-lg m-auto rounded-2xl p-6 space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="font-bold text-lg text-polo-navy">{receita ? 'Editar Receita' : 'Nova Receita de Produção'}</h2>
+          <button onClick={onFechar} aria-label="Fechar" className="text-2xl text-gray-500">×</button>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Nome da receita</label>
+          <input type="text" value={form.nome} onChange={e => set('nome', e.target.value)}
+            placeholder="Ex: Molho da casa" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Produto que será produzido</label>
+          <select value={form.produtoFinalId} onChange={e => set('produtoFinalId', e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="">Selecione…</option>
+            {ativos.map(p => <option key={p.id} value={p.id}>{p.nome} ({p.unidade})</option>)}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">É o item que entra no estoque. Crie-o em 📦 Produtos se ainda não existe.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Rende quanto? ({unid(form.produtoFinalId)})</label>
+            <input type="number" min="0" step="0.5" value={form.rendimentoBase} onChange={e => set('rendimentoBase', e.target.value)}
+              placeholder="Ex: 10" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Armazenamento</label>
+            <select value={form.armazenamento} onChange={e => set('armazenamento', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+              <option value="congelado">❄️ Congelado</option>
+              <option value="resfriado">🧊 Resfriado</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-semibold text-gray-600">Ingredientes (para o rendimento acima)</label>
+            <button onClick={addIng} className="text-xs font-bold text-polo-navy bg-gray-100 px-2 py-1 rounded">+ Ingrediente</button>
+          </div>
+          <div className="space-y-2">
+            {form.ingredientes.map((ing, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <select value={ing.produtoId} onChange={e => setIng(i, 'produtoId', e.target.value)}
+                  className="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white min-w-0">
+                  <option value="">Ingrediente…</option>
+                  {ativos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+                <input type="number" min="0" step="0.1" value={ing.quantidade} onChange={e => setIng(i, 'quantidade', e.target.value)}
+                  placeholder="Qtd" className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm" />
+                <span className="text-xs text-gray-400 w-8">{unid(ing.produtoId)}</span>
+                <button onClick={() => removeIng(i)} aria-label="Remover ingrediente"
+                  className="text-red-400 font-bold text-lg w-7 flex-shrink-0">×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-3 pt-2">
+          <button onClick={onFechar} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">Cancelar</button>
+          <button onClick={salvar} disabled={!valido}
+            className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl disabled:opacity-40">Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Configuracoes() {
   const { produtos, setProdutos, saidas, limparTudo, resetarProdutos, exportarBackup, importarBackup,
           pessoas, addPessoa, removePessoa, destinos, setDestinos, categorias, setCategorias,
-          fichas, setFichas, logAudit, prefs, setPref } = useApp();
+          fichas, setFichas, producoes, setProducoes, logAudit, prefs, setPref } = useApp();
   const { usuarios, sessao, criarConvite, alterarCargo } = useAuth();
   const { toast, confirm } = useUI();
   const sugestoes = calcSugestoesMinMax(produtos, saidas);
@@ -269,6 +366,8 @@ export default function Configuracoes() {
   const [buscaFicha, setBuscaFicha] = useState('');
   const [editandoFicha, setEditandoFicha] = useState(null);
   const [criandoFicha, setCriandoFicha] = useState(false);
+  const [editandoProducao, setEditandoProducao] = useState(null);
+  const [criandoProducao, setCriandoProducao] = useState(false);
 
   const handleAddCategoria = () => {
     const nome = novaCategoria.trim().toUpperCase();
@@ -418,7 +517,7 @@ export default function Configuracoes() {
     >
       {/* Seções */}
       <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
-        {[['produtos', '📦 Produtos'], ['fichas', '🍽️ Fichas'], ['acessos', '👤 Acessos'], ['sistema', '🛠️ Sistema']].map(([v, l]) => (
+        {[['produtos', '📦 Produtos'], ['fichas', '🍽️ Fichas'], ['producao', '🍲 Produção'], ['acessos', '👤 Acessos'], ['sistema', '🛠️ Sistema']].map(([v, l]) => (
           <button key={v} onClick={() => setSecao(v)}
             className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors
               ${secao === v ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
@@ -552,6 +651,48 @@ export default function Configuracoes() {
             ))}
           </div>
         ))}
+      </div>
+      </>}
+
+      {secao === 'producao' && <>
+      <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy mb-3">
+        Receitas de itens <strong>produzidos</strong> (molhos, caldos, refogados…): vários ingredientes viram 1 produto, com rendimento.
+        Depois, na aba <strong>🍲 Produção</strong>, a equipe produz e o estoque se atualiza sozinho.
+      </div>
+      <div className="mb-3 flex justify-end">
+        <button onClick={() => setCriandoProducao(true)}
+          className="bg-polo-gold text-polo-navy text-xs font-bold px-3 py-2 rounded-xl">+ Receita de produção</button>
+      </div>
+      <div className="space-y-3">
+        {producoes.length === 0 && (
+          <div className="bg-white rounded-xl p-6 text-center text-sm text-gray-500">
+            Nenhuma receita de produção ainda. Crie a primeira (ex.: "Molho da casa").
+          </div>
+        )}
+        {producoes.map(r => {
+          const final = produtos.find(p => p.id === r.produtoFinalId);
+          return (
+            <div key={r.id} className="bg-white rounded-xl p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm text-polo-navy truncate">{r.nome}</div>
+                  <div className="text-xs text-gray-500">
+                    Rende {fmtNum(r.rendimentoBase)} {final?.unidade || ''} de {final?.nome || '—'} • {(r.ingredientes || []).length} ingrediente(s)
+                  </div>
+                </div>
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <button onClick={() => setEditandoProducao(r)}
+                    className="text-xs text-polo-navy font-semibold px-2 py-1 rounded bg-gray-100">Editar</button>
+                  <button onClick={async () => {
+                      const ok = await confirm({ titulo: 'Excluir receita', mensagem: `Excluir "${r.nome}"?`, perigo: true, confirmar: 'Excluir' });
+                      if (ok) { setProducoes(producoes.filter(x => x.id !== r.id)); logAudit('excluiu receita de produção', r.nome); toast('Receita excluída.', 'sucesso'); }
+                    }} aria-label={`Excluir receita ${r.nome}`}
+                    className="text-xs text-red-400 font-semibold px-2 py-1 rounded bg-red-50">×</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
       </>}
 
@@ -751,6 +892,23 @@ export default function Configuracoes() {
         <input ref={fileRef} type="file" accept="application/json,.json" onChange={handleImportar} className="hidden" />
       </div>
 
+      {/* Modelo Polo (só pra montar rápido o restaurante Polo) */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
+        <div>
+          <p className="text-xs font-bold text-polo-navy uppercase tracking-wide">Modelo de exemplo (Polo)</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Carrega a montagem completa do Polo (produtos, fichas, categorias) por cima do que existe agora. Use para entregar o Polo já pronto.
+          </p>
+        </div>
+        <button onClick={async () => {
+          const ok = await confirm({ titulo: 'Carregar modelo Polo', mensagem: 'Isso substitui os catálogos atuais (produtos, fichas, categorias, equipe, destinos) pelos do modelo Polo. Continuar?', confirmar: 'Carregar' });
+          if (ok) { importarBackup(POLO_PRESET); logAudit('carregou modelo Polo', ''); toast('Modelo Polo carregado!', 'sucesso'); }
+        }}
+          className="w-full border border-polo-gold text-polo-navy font-semibold py-2.5 rounded-xl text-sm">
+          Carregar modelo Polo
+        </button>
+      </div>
+
       {/* Zona de perigo */}
       <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
         <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Zona de Perigo</p>
@@ -803,6 +961,27 @@ export default function Configuracoes() {
             setCriandoFicha(false);
           }}
           onFechar={() => { setEditandoFicha(null); setCriandoFicha(false); }}
+        />
+      )}
+
+      {(editandoProducao || criandoProducao) && (
+        <ModalProducao
+          receita={editandoProducao}
+          produtos={produtos}
+          onSalvar={(form) => {
+            if (editandoProducao) {
+              setProducoes(producoes.map(r => r.id === editandoProducao.id ? { ...r, ...form } : r));
+              logAudit('editou receita de produção', form.nome);
+              toast('Receita atualizada.', 'sucesso');
+            } else {
+              setProducoes([...producoes, { ...form, id: `prod_${Date.now()}` }]);
+              logAudit('criou receita de produção', form.nome);
+              toast('Receita criada.', 'sucesso');
+            }
+            setEditandoProducao(null);
+            setCriandoProducao(false);
+          }}
+          onFechar={() => { setEditandoProducao(null); setCriandoProducao(false); }}
         />
       )}
 

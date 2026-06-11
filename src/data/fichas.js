@@ -1,5 +1,9 @@
 // Fichas técnicas extraídas do cronograma do Polo (PRODUÇÃO E GRAMATURAS).
 // gramatura = gramas por porção; preparações "(lote)" usam gramas por lote produzido.
+
+// Base "de fábrica" para restaurantes novos: começa sem fichas (o cliente cria).
+export const FICHAS_BASE = [];
+
 export const FICHAS_INICIAIS = [
   // BOVINOS
   { id: 'f01', materiaPrima: 'Carne de Sol (Colchão Mole)', categoria: 'BOVINOS', preparacao: 'Cozido em cubos (Arrumadinho / Sol na Nata)', gramatura: 100 },

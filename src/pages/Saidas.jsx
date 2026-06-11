@@ -13,6 +13,10 @@ const DESTINOS = [
   { value: 'polo_beer', label: '🍺 Polo Beer' },
 ];
 
+// Rótulo de destino para exibição (inclui as saídas internas de produção)
+const rotuloDestino = (v) =>
+  v === 'producao' ? '🍲 Produção' : (DESTINOS.find(d => d.value === v)?.label || v);
+
 export default function Saidas() {
   const { produtos, addSaida, saidas, removeSaida, restaurarRegistro, calcEstoque, entradas, desperdicio, categorias, prefs, setPref } = useApp();
   const { toast, confirm } = useUI();
@@ -237,13 +241,12 @@ export default function Saidas() {
             <div className="text-center text-gray-500 py-12">Nenhuma saída registrada ainda.</div>
           )}
           {saidasOrdenadas.map(s => {
-            const dest = DESTINOS.find(d => d.value === s.destino);
             return (
               <div key={s.id} className="bg-white rounded-xl p-4">
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <div className="font-semibold text-sm">{fmtData(s.data)} {s.hora && `• ${s.hora}`}</div>
-                    <div className="text-xs font-semibold text-polo-navy">{dest?.label || s.destino}</div>
+                    <div className="text-xs font-semibold text-polo-navy">{rotuloDestino(s.destino)}</div>
                     {s.responsavel && <div className="text-xs text-gray-500">Por: {s.responsavel}</div>}
                   </div>
                   <button onClick={async () => {

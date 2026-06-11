@@ -4,6 +4,7 @@ import { calcLotes } from '../lotes';
 import { calcSugestoesMinMax } from '../sugestoes';
 import { validarDataRegistro, addDias, diasAte } from '../datas';
 import { rendimentoPorFornecedor, fatorCorrecaoItem, mediaDiariaSaidas, previsaoRuptura, listaDeCompras } from '../analise';
+import { ingredientesParaProduzir, planejarProducao } from '../producao';
 
 const P = (id, extra = {}) => ({ id, nome: id, unidade: 'kg', ativo: true, min: 0, max: 0, estoqueInicial: 0, ...extra });
 
@@ -169,5 +170,23 @@ describe('datas auxiliares', () => {
   it('addDias e diasAte são consistentes', () => {
     expect(addDias('2026-06-10', 12)).toBe('2026-06-22');
     expect(diasAte('2026-06-22', '2026-06-10')).toBe(12);
+  });
+});
+
+describe('produção — receita escala pelo rendimento', () => {
+  const receita = { rendimentoBase: 10, ingredientes: [{ produtoId: 'charque', quantidade: 5 }, { produtoId: 'agua', quantidade: 2 }] };
+
+  it('escala os ingredientes pela quantidade-alvo', () => {
+    const ing = ingredientesParaProduzir(receita, 20); // dobro do rendimento base
+    expect(ing.find(i => i.produtoId === 'charque').quantidade).toBe(10);
+    expect(ing.find(i => i.produtoId === 'agua').quantidade).toBe(4);
+  });
+
+  it('aponta o que falta quando o estoque é insuficiente', () => {
+    const plano = planejarProducao(receita, 10, { charque: 3, agua: 5 });
+    const ch = plano.itens.find(i => i.produtoId === 'charque');
+    expect(ch.falta).toBe(2);          // precisa 5, tem 3
+    expect(ch.suficiente).toBe(false);
+    expect(plano.faltaAlgum).toBe(true);
   });
 });

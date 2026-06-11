@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 export const CARGOS = [
@@ -26,12 +26,18 @@ export function AuthProvider({ children }) {
       .maybeSingle();
 
     if (perfil) {
+      const { data: rest } = await supabase
+        .from('restaurantes')
+        .select('nome')
+        .eq('id', perfil.restaurante_id)
+        .maybeSingle();
       setSessao({
-        usuarioId:      userId,
-        nome:           perfil.nome,
-        cargo:          perfil.cargo,
-        restauranteId:  perfil.restaurante_id,
-        ts:             Date.now(),
+        usuarioId:        userId,
+        nome:             perfil.nome,
+        cargo:            perfil.cargo,
+        restauranteId:    perfil.restaurante_id,
+        restauranteNome:  rest?.nome || '',
+        ts:               Date.now(),
       });
       const { data: todos } = await supabase
         .from('perfis')
@@ -46,18 +52,30 @@ export function AuthProvider({ children }) {
     setCarregando(false);
   }, []);
 
-  // Escuta mudanças de sessão do Supabase Auth
+  // Escuta mudanças de sessão do Supabase Auth.
+  // IMPORTANTE: não chamar o banco DENTRO do callback do onAuthStateChange
+  // (causa reentrância/loop no GoTrue). Adiamos com setTimeout(0) e evitamos
+  // recarregar o mesmo usuário que já está logado.
+  const carregadoRef = useRef(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) carregarPerfil(session.user.id);
+      if (session?.user) { carregadoRef.current = session.user.id; carregarPerfil(session.user.id); }
       else setCarregando(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Usuário clicou no link de recuperação de senha → abre a tela de nova senha
       if (event === 'PASSWORD_RECOVERY') { setRecuperando(true); setCarregando(false); return; }
-      if (session?.user) carregarPerfil(session.user.id);
-      else { setSessao(null); setUsuarios([]); setCarregando(false); }
+      const uid = session?.user?.id || null;
+      setTimeout(() => {
+        if (uid) {
+          if (carregadoRef.current === uid) return; // já carregado — ignora eventos repetidos
+          carregadoRef.current = uid;
+          carregarPerfil(uid);
+        } else {
+          carregadoRef.current = null;
+          setSessao(null); setUsuarios([]); setCarregando(false);
+        }
+      }, 0);
     });
 
     return () => subscription.unsubscribe();

@@ -76,7 +76,7 @@ export default function Dashboard() {
   const cats = ['TODOS', ...categorias];
 
   return (
-    <Layout title="Polo Estoque — Produção">
+    <Layout title="Início">
       {/* Resumo do dia */}
       <div className="mb-4">
         <p className="text-xs text-gray-500 mb-2">Atualizado em: {fmtData(dataHoje)}</p>
