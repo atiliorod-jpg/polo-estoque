@@ -249,7 +249,7 @@ export default function Configuracoes() {
   const { produtos, setProdutos, saidas, limparTudo, resetarProdutos, exportarBackup, importarBackup,
           pessoas, addPessoa, removePessoa, destinos, setDestinos, categorias, setCategorias,
           fichas, setFichas, logAudit, prefs, setPref } = useApp();
-  const { usuarios, setUsuarios, criarUsuario, sessao, temPermissao } = useAuth();
+  const { usuarios, sessao, criarConvite, alterarCargo } = useAuth();
   const { toast, confirm } = useUI();
   const sugestoes = calcSugestoesMinMax(produtos, saidas);
 
@@ -263,7 +263,8 @@ export default function Configuracoes() {
   };
   const [novoDestino, setNovoDestino] = useState('');
   const [novaCategoria, setNovaCategoria] = useState('');
-  const [novoUsuario, setNovoUsuario] = useState({ nome: '', pin: '', cargo: 'cozinha' });
+  const [conviteCargo, setConviteCargo] = useState('cozinha');
+  const [conviteGerado, setConviteGerado] = useState(null); // { token, cargo }
   const [buscaFicha, setBuscaFicha] = useState('');
   const [editandoFicha, setEditandoFicha] = useState(null);
   const [criandoFicha, setCriandoFicha] = useState(false);
@@ -309,18 +310,18 @@ export default function Configuracoes() {
     toast('Destino adicionado.', 'sucesso');
   };
 
-  const handleAddUsuario = () => {
-    const { nome, pin, cargo } = novoUsuario;
-    if (nome.trim().length < 2) { toast('Digite o nome do usuário.', 'aviso'); return; }
-    if (!/^\d{4,6}$/.test(pin)) { toast('PIN deve ter de 4 a 6 números.', 'aviso'); return; }
-    if (usuarios.some(u => u.nome.toLowerCase() === nome.trim().toLowerCase())) {
-      toast('Já existe usuário com esse nome.', 'aviso'); return;
-    }
-    criarUsuario(nome, pin, cargo);
-    addPessoa(nome); // já entra na lista de responsáveis também
-    logAudit('criou usuário', `${nome.trim()} (${CARGOS.find(c => c.id === cargo)?.label})`);
-    setNovoUsuario({ nome: '', pin: '', cargo: 'cozinha' });
-    toast('Usuário criado.', 'sucesso');
+  const handleGerarConvite = async () => {
+    const token = await criarConvite(conviteCargo);
+    if (!token) { toast('Não foi possível gerar o convite.', 'erro'); return; }
+    setConviteGerado({ token, cargo: conviteCargo });
+    logAudit('gerou convite de acesso', CARGOS.find(c => c.id === conviteCargo)?.label || conviteCargo);
+    toast('Convite gerado! Copie o código abaixo.', 'sucesso');
+  };
+
+  const copiarConvite = async () => {
+    if (!conviteGerado) return;
+    try { await navigator.clipboard.writeText(conviteGerado.token); toast('Código copiado!', 'sucesso'); }
+    catch { toast('Copie o código manualmente.', 'aviso'); }
   };
   const [catAtiva, setCatAtiva] = useState('TODOS');
   const [editando, setEditando] = useState(null);
@@ -328,18 +329,7 @@ export default function Configuracoes() {
   const [busca, setBusca] = useState('');
   const [novaPessoa, setNovaPessoa] = useState('');
   const [secao, setSecao] = useState('produtos'); // produtos | acessos | sistema
-  const [resetPin, setResetPin] = useState(null); // usuário em redefinição de PIN
-  const [pinNovo, setPinNovo] = useState('');
   const fileRef = useRef(null);
-
-  const confirmarResetPin = () => {
-    if (!/^\d{4,6}$/.test(pinNovo)) { toast('PIN deve ter de 4 a 6 números.', 'aviso'); return; }
-    setUsuarios(usuarios.map(u => u.id === resetPin.id ? { ...u, pin: pinNovo } : u));
-    logAudit('redefiniu PIN', resetPin.nome);
-    toast(`PIN de ${resetPin.nome} redefinido.`, 'sucesso');
-    setResetPin(null);
-    setPinNovo('');
-  };
 
   const handleAddPessoa = () => {
     const n = novaPessoa.trim();
@@ -632,51 +622,58 @@ export default function Configuracoes() {
         <div>
           <p className="text-xs font-bold text-polo-navy uppercase tracking-wide">👤 Usuários e Acessos</p>
           <p className="text-xs text-gray-500 mt-1">
-            Cozinha registra operações; Gerência e Diretoria também acessam Relatório, Configurações, Contagem e o Histórico de Mudanças.
+            Cada pessoa entra com <strong>e-mail e senha próprios</strong>. Para dar acesso a alguém novo, gere um
+            código de convite, escolha o cargo e passe o código — a pessoa se cadastra sozinha na tela de login.
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <input type="text" value={novoUsuario.nome} onChange={e => setNovoUsuario(p => ({ ...p, nome: e.target.value }))}
-            placeholder="Nome" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-          <input type="password" inputMode="numeric" value={novoUsuario.pin}
-            onChange={e => setNovoUsuario(p => ({ ...p, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-            placeholder="PIN (4-6 nº)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-        </div>
+
+        {/* Gerar convite */}
         <div className="flex gap-2">
-          <select value={novoUsuario.cargo} onChange={e => setNovoUsuario(p => ({ ...p, cargo: e.target.value }))}
+          <select value={conviteCargo} onChange={e => setConviteCargo(e.target.value)}
             className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
             {CARGOS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
-          <button onClick={handleAddUsuario}
-            className="bg-polo-navy text-polo-gold font-bold px-4 rounded-lg text-sm">+ Criar</button>
+          <button onClick={handleGerarConvite}
+            className="bg-polo-navy text-polo-gold font-bold px-4 rounded-lg text-sm whitespace-nowrap">+ Gerar convite</button>
         </div>
+        {conviteGerado && (
+          <div className="bg-polo-beige border border-polo-gold/50 rounded-xl p-3 space-y-2">
+            <p className="text-xs text-polo-navy">
+              Código de convite ({CARGOS.find(c => c.id === conviteGerado.cargo)?.label}) — válido por 7 dias, uso único:
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-lg font-bold tracking-widest text-polo-navy text-center">
+                {conviteGerado.token}
+              </code>
+              <button onClick={copiarConvite}
+                className="bg-polo-navy text-polo-gold font-bold px-3 py-2 rounded-lg text-sm">Copiar</button>
+            </div>
+          </div>
+        )}
+
+        {/* Lista de usuários */}
         <div className="space-y-1.5">
-          {usuarios.map(u => (
-            <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-              <div>
-                <span className="text-sm font-semibold text-gray-800">{u.nome}</span>
-                <span className="text-[10px] font-bold text-polo-navy bg-polo-beige px-1.5 py-0.5 rounded ml-2">
-                  {CARGOS.find(c => c.id === u.cargo)?.label}
-                </span>
-                {u.id === sessao?.usuarioId && <span className="text-[10px] text-green-600 font-semibold ml-1.5">• você</span>}
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => { setResetPin(u); setPinNovo(''); }}
-                  className="text-xs font-semibold text-polo-navy bg-polo-beige px-2 py-1 rounded-lg">🔑 PIN</button>
-                {u.id !== sessao?.usuarioId && (
-                  <button onClick={async () => {
-                      const ok = await confirm({ titulo: 'Remover usuário', mensagem: `Remover o acesso de ${u.nome}?`, perigo: true, confirmar: 'Remover' });
-                      if (ok) {
-                        setUsuarios(usuarios.filter(x => x.id !== u.id));
-                        logAudit('removeu usuário', u.nome);
-                        toast('Usuário removido.', 'sucesso');
-                      }
-                    }}
-                    className="text-red-400 text-xs font-semibold">Remover</button>
+          {usuarios.map(u => {
+            const euMesmo = u.id === sessao?.usuarioId;
+            return (
+              <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                <div>
+                  <span className="text-sm font-semibold text-gray-800">{u.nome}</span>
+                  {euMesmo && <span className="text-[10px] text-green-600 font-semibold ml-1.5">• você</span>}
+                </div>
+                {euMesmo ? (
+                  <span className="text-[10px] font-bold text-polo-navy bg-polo-beige px-1.5 py-0.5 rounded">
+                    {CARGOS.find(c => c.id === u.cargo)?.label}
+                  </span>
+                ) : (
+                  <select value={u.cargo} onChange={e => { alterarCargo(u.id, e.target.value); logAudit('alterou cargo', `${u.nome} → ${CARGOS.find(c => c.id === e.target.value)?.label}`); }}
+                    className="text-xs font-semibold text-polo-navy bg-polo-beige border border-polo-gold/40 rounded-lg px-2 py-1">
+                    {CARGOS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -759,26 +756,6 @@ export default function Configuracoes() {
         </button>
       </div>
       </>}
-
-      {/* Modal de redefinição de PIN */}
-      {resetPin && (
-        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4">
-            <h2 className="font-bold text-lg text-polo-navy">Redefinir PIN — {resetPin.nome}</h2>
-            <input type="password" inputMode="numeric" value={pinNovo}
-              onChange={e => setPinNovo(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              onKeyDown={e => { if (e.key === 'Enter') confirmarResetPin(); }}
-              placeholder="Novo PIN (4 a 6 números)" autoFocus
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-lg tracking-[0.4em]" />
-            <div className="flex gap-3">
-              <button onClick={() => { setResetPin(null); setPinNovo(''); }}
-                className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">Cancelar</button>
-              <button onClick={confirmarResetPin}
-                className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl">Salvar PIN</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {(editando || criando) && (
         <ModalProduto

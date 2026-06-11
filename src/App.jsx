@@ -19,9 +19,36 @@ function Restrito({ cargo = 'gerencia', children }) {
   return temPermissao(cargo) ? children : <Navigate to="/" replace />;
 }
 
+// Tela de carregamento (enquanto verifica a sessão na nuvem)
+function Splash({ texto = 'Carregando…' }) {
+  return (
+    <div className="min-h-screen bg-polo-navy flex flex-col items-center justify-center gap-5 p-6">
+      <img src={`${import.meta.env.BASE_URL}logo-aurum.png`} alt="Aurum"
+        className="w-24 h-24 rounded-2xl ring-1 ring-polo-gold/30 object-cover animate-pulse" />
+      <p className="text-white/60 text-sm">{texto}</p>
+    </div>
+  );
+}
+
 function Rotas() {
-  const { sessao } = useAuth();
+  const { sessao, carregando, logout } = useAuth();
+
+  if (carregando) return <Splash />;
   if (!sessao) return <Login />;
+
+  // Conta autenticada mas sem perfil/cargo (cadastro interrompido)
+  if (!sessao.cargo) {
+    return (
+      <div className="min-h-screen bg-polo-navy flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-polo-gold font-bold text-lg">Cadastro incompleto</p>
+        <p className="text-white/60 text-sm max-w-xs">
+          Sua conta foi criada mas ainda não está vinculada a um restaurante. Saia e entre novamente, ou peça um novo convite à diretoria.
+        </p>
+        <button onClick={logout} className="bg-polo-gold text-polo-navy font-bold px-6 py-2.5 rounded-xl">Sair</button>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
