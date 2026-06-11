@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
       .from('perfis')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (perfil) {
       setSessao({
@@ -86,16 +86,17 @@ export function AuthProvider({ children }) {
     if (error) return error.message;
     if (!data.user) return 'Erro inesperado ao criar conta.';
 
-    const { data: rest, error: errR } = await supabase
+    // Geramos o id aqui para não depender de ler a linha de volta
+    // (o RLS só libera a leitura depois que o perfil de vínculo existe).
+    const restauranteId = (crypto?.randomUUID?.() || `r_${Date.now()}`);
+    const { error: errR } = await supabase
       .from('restaurantes')
-      .insert({ nome: nomeRestaurante || nome + ' — Restaurante' })
-      .select()
-      .single();
+      .insert({ id: restauranteId, nome: nomeRestaurante || nome + ' — Restaurante' });
     if (errR) return errR.message;
 
     const { error: errP } = await supabase
       .from('perfis')
-      .insert({ id: data.user.id, nome, cargo: 'diretoria', restaurante_id: rest.id });
+      .insert({ id: data.user.id, nome, cargo: 'diretoria', restaurante_id: restauranteId });
     if (errP) return errP.message;
 
     await carregarPerfil(data.user.id);

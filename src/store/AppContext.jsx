@@ -275,7 +275,10 @@ export function AppProvider({ children }) {
         if (mapa[chave] !== undefined) { setRaw(mapa[chave]); cacheSet(rid, chave, mapa[chave]); }
         else { // catálogo ainda não existe na nuvem → semeia
           setRaw(def); cacheSet(rid, chave, def);
-          supabase.from('documentos').upsert({ restaurante_id: rid, chave, dados: def, updated_at: new Date().toISOString() });
+          // .then() é obrigatório: a query do Supabase só é ENVIADA quando consumida
+          supabase.from('documentos')
+            .upsert({ restaurante_id: rid, chave, dados: def, updated_at: new Date().toISOString() })
+            .then(() => {});
         }
       };
       aplicaCat('produtos', setProdutosRaw, CAT.produtos);
@@ -359,7 +362,7 @@ export function AppProvider({ children }) {
     [['compras', setComprasRaw], ['entradas', setEntradasRaw], ['saidas', setSaidasRaw],
      ['aparas', setAparasRaw], ['desperdicio', setDesperdicioRaw], ['ajustes', setAjustesRaw]]
       .forEach(([key, setRaw]) => { setRaw([]); cacheSet(r, key, []); });
-    if (r) supabase.from('registros').update({ deleted: true }).eq('restaurante_id', r).neq('tipo', 'auditoria');
+    if (r) supabase.from('registros').update({ deleted: true }).eq('restaurante_id', r).neq('tipo', 'auditoria').then(() => {});
     logAudit('apagou todos os registros', 'compras, entradas, saídas, aparas, perdas e contagens');
   }, [logAudit]);
 
@@ -398,7 +401,7 @@ export function AppProvider({ children }) {
       setRaw(arr); cacheSet(r, key, arr);
       if (r && arr.length) {
         const rows = arr.map(x => ({ id: x.id, restaurante_id: r, tipo, ts: x.ts || Date.now(), dados: semIdTs(x), deleted: false }));
-        supabase.from('registros').upsert(rows);
+        supabase.from('registros').upsert(rows).then(() => {});
       }
     };
     reg('compras', setComprasRaw, 'compra', dados.compras);
