@@ -31,11 +31,12 @@ function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto overscroll-contain p-4 flex">
+    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto overscroll-contain p-4 flex"
+      role="dialog" aria-modal="true" aria-labelledby="modal-produto-titulo">
       <div className="bg-white w-full max-w-lg m-auto rounded-2xl p-6 space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="font-bold text-lg text-polo-navy">{produto ? 'Editar Produto' : 'Novo Produto'}</h2>
-          <button onClick={onFechar} className="text-2xl text-gray-500">×</button>
+          <h2 id="modal-produto-titulo" className="font-bold text-lg text-polo-navy">{produto ? 'Editar Produto' : 'Novo Produto'}</h2>
+          <button onClick={onFechar} aria-label="Fechar" className="text-2xl text-gray-400 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">×</button>
         </div>
 
         <div>
@@ -193,11 +194,12 @@ function ModalFicha({ ficha, fichas, categorias, onSalvar, onFechar }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto overscroll-contain p-4 flex">
+    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto overscroll-contain p-4 flex"
+      role="dialog" aria-modal="true" aria-labelledby="modal-ficha-titulo">
       <div className="bg-white w-full max-w-lg m-auto rounded-2xl p-6 space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="font-bold text-lg text-polo-navy">{ficha ? 'Editar Ficha' : 'Nova Ficha'}</h2>
-          <button onClick={onFechar} aria-label="Fechar" className="text-2xl text-gray-500">×</button>
+          <h2 id="modal-ficha-titulo" className="font-bold text-lg text-polo-navy">{ficha ? 'Editar Gramatura' : 'Nova Gramatura'}</h2>
+          <button onClick={onFechar} aria-label="Fechar" className="text-2xl text-gray-400 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">×</button>
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">Matéria-prima</label>
@@ -277,11 +279,12 @@ function ModalProducao({ receita, produtos, onSalvar, onFechar }) {
   });
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto overscroll-contain p-4 flex">
+    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto overscroll-contain p-4 flex"
+      role="dialog" aria-modal="true" aria-labelledby="modal-producao-titulo">
       <div className="bg-white w-full max-w-lg m-auto rounded-2xl p-6 space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="font-bold text-lg text-polo-navy">{receita ? 'Editar Receita' : 'Nova Receita de Produção'}</h2>
-          <button onClick={onFechar} aria-label="Fechar" className="text-2xl text-gray-500">×</button>
+          <h2 id="modal-producao-titulo" className="font-bold text-lg text-polo-navy">{receita ? 'Editar Receita' : 'Nova Receita de Produção'}</h2>
+          <button onClick={onFechar} aria-label="Fechar" className="text-2xl text-gray-400 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">×</button>
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">Nome da receita</label>
@@ -396,6 +399,8 @@ export default function Configuracoes() {
   const [novaCategoria, setNovaCategoria] = useState('');
   const [conviteCargo, setConviteCargo] = useState('cozinha');
   const [conviteGerado, setConviteGerado] = useState(null); // { token, cargo }
+  // Receitas — fichas (gramaturas) e produções unificadas numa aba
+  const [subReceitas, setSubReceitas] = useState('fichas'); // fichas | producoes
   const [buscaFicha, setBuscaFicha] = useState('');
   const [editandoFicha, setEditandoFicha] = useState(null);
   const [criandoFicha, setCriandoFicha] = useState(false);
@@ -541,16 +546,25 @@ export default function Configuracoes() {
   return (
     <Layout
       title="Configurações"
-      actions={secao === 'produtos' ? (
-        <button onClick={() => setCriando(true)}
-          className="bg-polo-gold text-polo-navy text-xs font-bold px-3 py-1.5 rounded-lg">
-          + Produto
-        </button>
-      ) : null}
+      actions={
+        secao === 'produtos' ? (
+          <button onClick={() => setCriando(true)} aria-label="Adicionar produto"
+            className="bg-polo-gold text-polo-navy text-xs font-bold px-3 py-1.5 rounded-lg">
+            + Produto
+          </button>
+        ) : secao === 'receitas' ? (
+          <button
+            onClick={() => subReceitas === 'fichas' ? setCriandoFicha(true) : setCriandoProducao(true)}
+            aria-label={subReceitas === 'fichas' ? 'Adicionar gramatura' : 'Adicionar receita de produção'}
+            className="bg-polo-gold text-polo-navy text-xs font-bold px-3 py-1.5 rounded-lg">
+            + {subReceitas === 'fichas' ? 'Gramatura' : 'Receita'}
+          </button>
+        ) : null
+      }
     >
-      {/* Seções */}
+      {/* Seções — 4 abas */}
       <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
-        {[['produtos', '📦 Produtos'], ['fichas', '🍽️ Fichas'], ['producao', '🍲 Produção'], ['acessos', '👤 Acessos'], ['sistema', '🛠️ Sistema']].map(([v, l]) => (
+        {[['produtos', '📦 Produtos'], ['receitas', '🍽️ Receitas'], ['acessos', '👤 Acessos'], ['sistema', '🛠️ Sistema']].map(([v, l]) => (
           <button key={v} onClick={() => setSecao(v)}
             className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors
               ${secao === v ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
@@ -645,88 +659,99 @@ export default function Configuracoes() {
       </div>
       </>}
 
-      {secao === 'fichas' && <>
-      <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy mb-3">
-        Gramaturas das preparações (cronograma do Polo). Usadas no <strong>🧮 Planejar</strong>, dentro de Compras, para calcular quanto comprar.
+      {secao === 'receitas' && <>
+      {/* Subtipo */}
+      <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
+        <button onClick={() => setSubReceitas('fichas')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${subReceitas === 'fichas' ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
+          🍽️ Gramaturas
+        </button>
+        <button onClick={() => setSubReceitas('producoes')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${subReceitas === 'producoes' ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
+          🍲 Produções
+        </button>
       </div>
-      <div className="mb-3 flex gap-2">
-        <input type="text" value={buscaFicha} onChange={e => setBuscaFicha(e.target.value)}
-          placeholder="🔍 Buscar matéria-prima ou preparação..."
-          className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm" />
-        <button onClick={() => setCriandoFicha(true)}
-          className="bg-polo-gold text-polo-navy text-xs font-bold px-3 rounded-xl">+ Ficha</button>
-      </div>
-      <div className="space-y-3">
-        {Object.entries(
-          fichas
-            .filter(f => !buscaFicha || f.materiaPrima.toLowerCase().includes(buscaFicha.toLowerCase()) || f.preparacao.toLowerCase().includes(buscaFicha.toLowerCase()))
-            .reduce((m, f) => { (m[f.materiaPrima] = m[f.materiaPrima] || []).push(f); return m; }, {})
-        ).sort(([a], [b]) => a.localeCompare(b)).map(([mp, lista]) => (
-          <div key={mp} className="bg-white rounded-xl overflow-hidden">
-            <div className="bg-polo-beige px-4 py-2 text-xs font-bold text-polo-navy uppercase tracking-wide">{mp}</div>
-            {lista.map((f, i) => (
-              <div key={f.id} className={`flex items-center px-4 py-2.5 gap-3 ${i < lista.length - 1 ? 'border-b border-gray-50' : ''}`}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-gray-800 truncate">{f.preparacao}</div>
-                  {(parseFloat(f.coccao) || 0) > 0 && (
-                    <div className="text-[10px] text-orange-600">🔥 cocção −{f.coccao}%</div>
-                  )}
+
+      {subReceitas === 'fichas' && <>
+        <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy mb-3">
+          Gramatura por preparação. Usadas no <strong>Planejar</strong> (dentro de Compras) para calcular o bruto a comprar por porção.
+        </div>
+        <div className="mb-3">
+          <input type="text" value={buscaFicha} onChange={e => setBuscaFicha(e.target.value)}
+            placeholder="Buscar matéria-prima ou preparação..."
+            aria-label="Buscar gramatura"
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm" />
+        </div>
+        <div className="space-y-3 mb-4">
+          {Object.entries(
+            fichas
+              .filter(f => !buscaFicha || f.materiaPrima.toLowerCase().includes(buscaFicha.toLowerCase()) || f.preparacao.toLowerCase().includes(buscaFicha.toLowerCase()))
+              .reduce((m, f) => { (m[f.materiaPrima] = m[f.materiaPrima] || []).push(f); return m; }, {})
+          ).sort(([a], [b]) => a.localeCompare(b)).map(([mp, lista]) => (
+            <div key={mp} className="bg-white rounded-xl overflow-hidden">
+              <div className="bg-polo-beige px-4 py-2 text-xs font-bold text-polo-navy uppercase tracking-wide">{mp}</div>
+              {lista.map((f, i) => (
+                <div key={f.id} className={`flex items-center px-4 py-2.5 gap-3 ${i < lista.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-gray-800 truncate">{f.preparacao}</div>
+                    {(parseFloat(f.coccao) || 0) > 0 && (
+                      <div className="text-[10px] text-orange-600">🔥 cocção −{f.coccao}%</div>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold text-polo-navy flex-shrink-0">{f.gramatura} g</span>
+                  <button onClick={() => setEditandoFicha(f)} aria-label={`Editar gramatura ${f.preparacao}`}
+                    className="text-xs text-polo-navy font-semibold px-2 py-1 rounded bg-gray-100 flex-shrink-0">Editar</button>
+                  <button onClick={async () => {
+                      const ok = await confirm({ titulo: 'Excluir gramatura', mensagem: `Excluir "${f.preparacao}"?`, perigo: true, confirmar: 'Excluir' });
+                      if (ok) { setFichas(fichas.filter(x => x.id !== f.id)); logAudit('excluiu ficha', f.preparacao); toast('Gramatura excluída.', 'sucesso'); }
+                    }} aria-label={`Excluir gramatura ${f.preparacao}`}
+                    className="text-xs text-red-400 font-semibold px-2 py-1 rounded bg-red-50 flex-shrink-0">×</button>
                 </div>
-                <span className="text-sm font-bold text-polo-navy flex-shrink-0">{f.gramatura} g</span>
-                <button onClick={() => setEditandoFicha(f)}
-                  className="text-xs text-polo-navy font-semibold px-2 py-1 rounded bg-gray-100 flex-shrink-0">Editar</button>
-                <button onClick={async () => {
-                    const ok = await confirm({ titulo: 'Excluir ficha', mensagem: `Excluir "${f.preparacao}"?`, perigo: true, confirmar: 'Excluir' });
-                    if (ok) { setFichas(fichas.filter(x => x.id !== f.id)); logAudit('excluiu ficha', f.preparacao); toast('Ficha excluída.', 'sucesso'); }
-                  }} aria-label={`Excluir ficha ${f.preparacao}`}
-                  className="text-xs text-red-400 font-semibold px-2 py-1 rounded bg-red-50 flex-shrink-0">×</button>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+              ))}
+            </div>
+          ))}
+          {fichas.filter(f => !buscaFicha || f.materiaPrima.toLowerCase().includes(buscaFicha.toLowerCase()) || f.preparacao.toLowerCase().includes(buscaFicha.toLowerCase())).length === 0 && (
+            <div className="bg-white rounded-xl p-6 text-center text-sm text-gray-500">Nenhuma gramatura encontrada.</div>
+          )}
+        </div>
       </>}
 
-      {secao === 'producao' && <>
-      <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy mb-3">
-        Receitas de itens <strong>produzidos</strong> (molhos, caldos, refogados…): vários ingredientes viram 1 produto, com rendimento.
-        Depois, na aba <strong>🍲 Produção</strong>, a equipe produz e o estoque se atualiza sozinho.
-      </div>
-      <div className="mb-3 flex justify-end">
-        <button onClick={() => setCriandoProducao(true)}
-          className="bg-polo-gold text-polo-navy text-xs font-bold px-3 py-2 rounded-xl">+ Receita de produção</button>
-      </div>
-      <div className="space-y-3">
-        {producoes.length === 0 && (
-          <div className="bg-white rounded-xl p-6 text-center text-sm text-gray-500">
-            Nenhuma receita de produção ainda. Crie a primeira (ex.: "Molho da casa").
-          </div>
-        )}
-        {producoes.map(r => {
-          const final = produtos.find(p => p.id === r.produtoFinalId);
-          return (
-            <div key={r.id} className="bg-white rounded-xl p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-semibold text-sm text-polo-navy truncate">{r.nome}</div>
-                  <div className="text-xs text-gray-500">
-                    Rende {fmtNum(r.rendimentoBase)} {final?.unidade || ''} de {final?.nome || '—'} • {(r.ingredientes || []).length} ingrediente(s)
+      {subReceitas === 'producoes' && <>
+        <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy mb-3">
+          Receitas de itens <strong>produzidos</strong> (molhos, caldos, refogados): vários ingredientes viram 1 produto com rendimento. A equipe executa em <strong>Registrar → Produção</strong>.
+        </div>
+        <div className="space-y-3 mb-4">
+          {producoes.length === 0 && (
+            <div className="bg-white rounded-xl p-6 text-center text-sm text-gray-500">
+              Nenhuma receita ainda. Crie a primeira (ex.: "Molho da casa").
+            </div>
+          )}
+          {producoes.map(r => {
+            const final = produtos.find(p => p.id === r.produtoFinalId);
+            return (
+              <div key={r.id} className="bg-white rounded-xl p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm text-polo-navy truncate">{r.nome}</div>
+                    <div className="text-xs text-gray-500">
+                      Rende {fmtNum(r.rendimentoBase)} {final?.unidade || ''} de {final?.nome || '—'} • {(r.ingredientes || []).length} ingrediente(s)
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    <button onClick={() => setEditandoProducao(r)} aria-label={`Editar receita ${r.nome}`}
+                      className="text-xs text-polo-navy font-semibold px-2 py-1 rounded bg-gray-100">Editar</button>
+                    <button onClick={async () => {
+                        const ok = await confirm({ titulo: 'Excluir receita', mensagem: `Excluir "${r.nome}"?`, perigo: true, confirmar: 'Excluir' });
+                        if (ok) { setProducoes(producoes.filter(x => x.id !== r.id)); logAudit('excluiu receita de produção', r.nome); toast('Receita excluída.', 'sucesso'); }
+                      }} aria-label={`Excluir receita ${r.nome}`}
+                      className="text-xs text-red-400 font-semibold px-2 py-1 rounded bg-red-50">×</button>
                   </div>
                 </div>
-                <div className="flex gap-1.5 flex-shrink-0">
-                  <button onClick={() => setEditandoProducao(r)}
-                    className="text-xs text-polo-navy font-semibold px-2 py-1 rounded bg-gray-100">Editar</button>
-                  <button onClick={async () => {
-                      const ok = await confirm({ titulo: 'Excluir receita', mensagem: `Excluir "${r.nome}"?`, perigo: true, confirmar: 'Excluir' });
-                      if (ok) { setProducoes(producoes.filter(x => x.id !== r.id)); logAudit('excluiu receita de produção', r.nome); toast('Receita excluída.', 'sucesso'); }
-                    }} aria-label={`Excluir receita ${r.nome}`}
-                    className="text-xs text-red-400 font-semibold px-2 py-1 rounded bg-red-50">×</button>
-                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </>}
       </>}
 
       {secao === 'sistema' && <>
@@ -752,7 +777,9 @@ export default function Configuracoes() {
               de cada produto pela média de saídas dos últimos 15 dias. Desligado, ele apenas sugere e você aprova.
             </p>
           </div>
-          <button onClick={() => {
+          <button
+            role="switch" aria-checked={!!prefs.autoMinMax}
+            onClick={() => {
               const novo = !prefs.autoMinMax;
               setPref('autoMinMax', novo);
               toast(novo ? 'Ajuste automático LIGADO — mín/máx acompanham o consumo.' : 'Ajuste automático desligado — voltam as sugestões manuais.', 'sucesso');

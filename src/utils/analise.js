@@ -106,35 +106,39 @@ export function fatorCorrecaoItem(materiaPrima, compras, aparas, desperdicio) {
   return Math.min(correcao / comprado, 0.9);
 }
 
-// Série diária de saídas no período, separada por polo
+// Série diária de saídas no período. Cada ponto tem `total` + um entry por destino id.
+// Saídas internas (destino='producao') não entram no total.
 export function saidasPorDia(saidas, inicio, fim) {
   const porDia = {};
   saidas.forEach(s => {
     if (s.data < inicio || s.data > fim) return;
-    if (!porDia[s.data]) porDia[s.data] = { central: 0, beer: 0 };
-    const total = (s.itens || []).reduce((t, i) => t + num(i.quantidade), 0);
-    if (s.destino === 'polo_beer') porDia[s.data].beer += total;
-    else porDia[s.data].central += total;
+    if (s.destino === 'producao') return;
+    if (!porDia[s.data]) porDia[s.data] = { total: 0 };
+    const qty = (s.itens || []).reduce((t, i) => t + num(i.quantidade), 0);
+    porDia[s.data].total += qty;
+    if (s.destino) porDia[s.data][s.destino] = (porDia[s.data][s.destino] || 0) + qty;
   });
   return Object.entries(porDia)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([data, v]) => ({ data, ...v, total: v.central + v.beer }));
+    .map(([data, v]) => ({ data, ...v }));
 }
 
-// Top produtos por saída no período, com divisão Central × Beer
-export function topProdutosSaida(produtos, saidasFiltradas, limite = 8) {
+// Top produtos por saída no período, com qtd por destino.
+// locais: [{ id, nome }] — usa para ordenar as colunas.
+export function topProdutosSaida(produtos, saidasFiltradas, locais = [], limite = 8) {
   const tot = {};
   saidasFiltradas.forEach(s => {
+    if (s.destino === 'producao') return;
     (s.itens || []).forEach(i => {
-      if (!tot[i.produtoId]) tot[i.produtoId] = { central: 0, beer: 0 };
-      if (s.destino === 'polo_beer') tot[i.produtoId].beer += num(i.quantidade);
-      else tot[i.produtoId].central += num(i.quantidade);
+      if (!tot[i.produtoId]) tot[i.produtoId] = { total: 0 };
+      tot[i.produtoId].total += num(i.quantidade);
+      if (s.destino) tot[i.produtoId][s.destino] = (tot[i.produtoId][s.destino] || 0) + num(i.quantidade);
     });
   });
   return Object.entries(tot)
     .map(([id, v]) => {
       const p = produtos.find(x => x.id === id);
-      return { nome: p?.nome || id, unidade: p?.unidade || '', ...v, total: v.central + v.beer };
+      return { nome: p?.nome || id, unidade: p?.unidade || '', ...v };
     })
     .sort((a, b) => b.total - a.total)
     .slice(0, limite);

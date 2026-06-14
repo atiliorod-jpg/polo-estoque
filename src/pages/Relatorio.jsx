@@ -47,7 +47,7 @@ export default function Relatorio() {
 
   // Análises
   const serieDias = useMemo(() => saidasPorDia(saidas, rIni, rFim), [saidas, rIni, rFim]);
-  const topProdutos = useMemo(() => topProdutosSaida(produtos, saidasF), [produtos, saidasF]);
+  const topProdutos = useMemo(() => topProdutosSaida(produtos, saidasF, locais), [produtos, saidasF, locais]);
   const perdasPorMotivo = useMemo(
     () => somaPorCampo(perdasF, 'motivo').map(x => ({ label: `${x.cod} — ${rotuloMotivo(x.cod)}`, valor: x.valor })),
     [perdasF]);
@@ -227,13 +227,13 @@ export default function Relatorio() {
 
       {/* Tendência diária (só faz sentido em período) */}
       {modo === 'periodo' && (
-        <Card titulo="📈 Saídas por dia (Central + Beer)">
+        <Card titulo="📈 Saídas por dia">
           <LinhaDias dados={serieDias} />
         </Card>
       )}
 
       <Card titulo="🏆 Produtos mais consumidos">
-        <BarrasEmpilhadas dados={topProdutos} />
+        <BarrasEmpilhadas dados={topProdutos} locais={locais} />
       </Card>
 
       <Card titulo="🗑️ Perdas por motivo">

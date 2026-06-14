@@ -2,10 +2,13 @@
 
 const fmt = (v) => (Number.isInteger(v) ? v : v.toFixed(1));
 
-// Barras horizontais empilhadas: [{ nome, central, beer, total, unidade }]
-export function BarrasEmpilhadas({ dados }) {
+const CORES_BARRAS = ['#1B2A41', '#C9A24B', '#B0413E', '#3E7C59', '#6B5B95', '#D97742'];
+
+// Barras horizontais empilhadas: [{ nome, total, [localId]: qty, unidade }]
+// locais: [{ id, nome }] — segmentos dinâmicos, 1 por destino de saída.
+export function BarrasEmpilhadas({ dados, locais = [] }) {
   if (!dados.length) return <Vazio />;
-  const max = Math.max(...dados.map(d => d.total));
+  const max = Math.max(...dados.map(d => d.total)) || 1;
   return (
     <div className="space-y-2">
       {dados.map(d => (
@@ -15,15 +18,27 @@ export function BarrasEmpilhadas({ dados }) {
             <span className="text-gray-500 flex-shrink-0 ml-2">{fmt(d.total)} {d.unidade}</span>
           </div>
           <div className="flex h-3.5 rounded-full overflow-hidden bg-gray-100">
-            <div className="bg-polo-navy" style={{ width: `${(d.central / max) * 100}%` }} title={`Central: ${fmt(d.central)}`} />
-            <div className="bg-polo-gold" style={{ width: `${(d.beer / max) * 100}%` }} title={`Beer: ${fmt(d.beer)}`} />
+            {locais.length > 0
+              ? locais.map((l, i) => (
+                  <div key={l.id}
+                    style={{ width: `${((d[l.id] || 0) / max) * 100}%`, background: CORES_BARRAS[i % CORES_BARRAS.length] }}
+                    title={`${l.nome}: ${fmt(d[l.id] || 0)}`} />
+                ))
+              : <div className="bg-polo-navy h-full" style={{ width: `${(d.total / max) * 100}%` }} />
+            }
           </div>
         </div>
       ))}
-      <div className="flex gap-4 pt-1 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-polo-navy inline-block" /> Polo Central</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-polo-gold inline-block" /> Polo Beer</span>
-      </div>
+      {locais.length > 0 && (
+        <div className="flex gap-4 pt-1 text-xs text-gray-500 flex-wrap">
+          {locais.map((l, i) => (
+            <span key={l.id} className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ background: CORES_BARRAS[i % CORES_BARRAS.length] }} />
+              {l.nome}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
