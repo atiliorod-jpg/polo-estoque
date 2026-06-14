@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { PRODUTOS_BASE, PESSOAS_BASE, DESTINOS_APARA, CATEGORIAS_BASE } from '../data/produtos';
 import { FICHAS_BASE } from '../data/fichas';
-import { calcSugestoesMinMax } from '../utils/sugestoes';
+import { calcSugestoesMinMax, DIAS_MIN, DIAS_MAX } from '../utils/sugestoes';
 import { calcEstoquePuro } from '../utils/estoque';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
@@ -157,7 +157,7 @@ export function AppProvider({ children }) {
   // ── Registros operacionais (tabela 'registros') ────────────
   const addRegistro = useCallback((tipo, setRaw, key, registro) => {
     const r = ridRef.current;
-    const novo = { ...registro, id: Date.now().toString(), ts: Date.now() };
+    const novo = { ...registro, id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`, ts: Date.now() };
     setRaw(prev => {
       const next = [...prev, novo];
       cacheSet(r, key, next);
@@ -236,10 +236,29 @@ export function AppProvider({ children }) {
     [produtos, entradas, saidas, ajustes, desperdicio]
   );
 
+  // Migração única: copia gramatura/coccao de fichas para os produtos correspondentes
+  const gramigrRef = useRef(false);
+  useEffect(() => {
+    if (gramigrRef.current || prefs.gramaturasMigradas) { gramigrRef.current = true; return; }
+    if (!fichas.length || !produtos.length) return;
+    gramigrRef.current = true;
+    let mudou = false;
+    const next = produtos.map(p => {
+      if (p.gramatura) return p;
+      const nome = p.nome.toLowerCase().trim();
+      const ficha = fichas.find(f => f.materiaPrima.toLowerCase().trim() === nome);
+      if (!ficha) return p;
+      mudou = true;
+      return { ...p, gramatura: ficha.gramatura, coccao: parseFloat(ficha.coccao) || 0 };
+    });
+    if (mudou) setProdutos(next);
+    setPref('gramaturasMigradas', true);
+  }, [fichas, produtos, prefs.gramaturasMigradas, setProdutos]);
+
   // Modo automático mín/máx
   useEffect(() => {
     if (!prefs.autoMinMax) return;
-    const sug = calcSugestoesMinMax(produtos, saidas);
+    const sug = calcSugestoesMinMax(produtos, saidas, undefined, prefs.diasMin || DIAS_MIN, prefs.diasMax || DIAS_MAX);
     let mudou = false;
     const next = produtos.map(p => {
       const s = sug[p.id];

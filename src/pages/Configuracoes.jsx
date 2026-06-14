@@ -5,7 +5,7 @@ import { useApp } from '../store/AppContext';
 import { useAuth, CARGOS } from '../store/AuthContext';
 import { useUI } from '../store/UIContext';
 import NovaSenha from './NovaSenha';
-import { calcSugestoesMinMax, DIAS_MIN, DIAS_MAX } from '../utils/sugestoes';
+import { calcSugestoesMinMax } from '../utils/sugestoes';
 import { fmtNum } from '../utils/formatters';
 import { POLO_PRESET } from '../data/presetPolo';
 
@@ -13,7 +13,7 @@ import { POLO_PRESET } from '../data/presetPolo';
 // a conversão para número acontece só no salvar.
 const numVazio = (v) => (v === 0 || v == null ? '' : String(v));
 
-function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
+function ModalProduto({ produto, sugestao, categorias, diasMin = 3, diasMax = 6, onSalvar, onFechar }) {
   const [form, setForm] = useState(() => produto
     ? {
         ...produto,
@@ -23,10 +23,14 @@ function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
         valCongelado: numVazio(produto.valCongelado),
         valResfriado: numVazio(produto.valResfriado),
         pesoUnidade: numVazio(produto.pesoUnidade),
+        gramatura: numVazio(produto.gramatura),
+        coccao: numVazio(produto.coccao),
+        entradaCozida: produto.entradaCozida || false,
       }
     : {
         nome: '', categoria: categorias[0], unidade: 'kg',
-        estoqueInicial: '', min: '', max: '', valCongelado: '', valResfriado: '', pesoUnidade: '', ativo: true,
+        estoqueInicial: '', min: '', max: '', valCongelado: '', valResfriado: '', pesoUnidade: '',
+        gramatura: '', coccao: '', entradaCozida: false, ativo: true,
       });
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -80,7 +84,7 @@ function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">
-              Estoque Mínimo (3 dias)
+              Estoque Mínimo ({diasMin} dias)
             </label>
             <input type="number" min="0" step="0.5" value={form.min} onChange={e => set('min', e.target.value)}
               placeholder="0"
@@ -88,7 +92,7 @@ function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">
-              Estoque Máximo (6 dias)
+              Estoque Máximo ({diasMax} dias)
             </label>
             <input type="number" min="0" step="0.5" value={form.max} onChange={e => set('max', e.target.value)}
               placeholder="0"
@@ -145,6 +149,40 @@ function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
           </div>
         )}
 
+        {/* Gramatura / Porcionamento */}
+        <div className="border border-gray-100 rounded-xl p-3 space-y-3">
+          <p className="text-xs font-bold text-polo-navy uppercase tracking-wide">🍽️ Gramatura / Porcionamento</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Gramatura (g / porção)</label>
+              <input type="number" min="0" step="5" value={form.gramatura} onChange={e => set('gramatura', e.target.value)}
+                placeholder="Ex: 200"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Perda cocção (%)</label>
+              <input type="number" min="0" max="90" step="1" value={form.coccao} onChange={e => set('coccao', e.target.value)}
+                placeholder="Ex: 30"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 bg-orange-50 rounded-lg p-2.5">
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-gray-700">Entra no estoque já cozido?</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Ex: cupim cozido, carne de sol desfiada — já entram prontos. Filé de frango entra cru.</p>
+            </div>
+            <button onClick={() => set('entradaCozida', !form.entradaCozida)}
+              className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${form.entradaCozida ? 'bg-orange-500' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.entradaCozida ? 'left-6' : 'left-0.5'}`} />
+            </button>
+          </div>
+          {form.entradaCozida && form.coccao && (
+            <p className="text-[10px] text-orange-700 bg-orange-50 rounded-lg px-2 py-1.5">
+              ✔ Na lista de compras, a perda de cocção ({form.coccao}%) será considerada: você compra mais cru para chegar ao kg cozido necessário.
+            </p>
+          )}
+        </div>
+
         <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
           <span className="text-sm text-gray-700 flex-1">Produto ativo</span>
           <button onClick={() => set('ativo', !form.ativo)}
@@ -166,6 +204,9 @@ function ModalProduto({ produto, sugestao, categorias, onSalvar, onFechar }) {
               valCongelado: parseInt(form.valCongelado) || 0,
               valResfriado: parseInt(form.valResfriado) || 0,
               pesoUnidade: parseFloat(form.pesoUnidade) || 0,
+              gramatura: parseFloat(form.gramatura) || 0,
+              coccao: Math.min(parseFloat(form.coccao) || 0, 90),
+              entradaCozida: form.entradaCozida || false,
             })} disabled={!form.nome.trim()}
             className="flex-1 bg-polo-navy text-polo-gold font-bold py-3 rounded-xl disabled:opacity-40">
             Salvar
@@ -254,7 +295,7 @@ function ModalProducao({ receita, produtos, onSalvar, onFechar }) {
   const ativos = produtos.filter(p => p.ativo);
   const [form, setForm] = useState(receita || {
     nome: '', produtoFinalId: ativos[0]?.id || '', rendimentoBase: '', armazenamento: 'congelado',
-    ingredientes: [{ abate: true, produtoId: '', quantidade: '' }],
+    ingredientes: [{ abate: false, produtoId: '', quantidade: '', nome: '', unidade: 'kg' }],
   });
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
   const setIng = (i, k, v) => setForm(prev => {
@@ -262,7 +303,7 @@ function ModalProducao({ receita, produtos, onSalvar, onFechar }) {
     ing[i] = { ...ing[i], [k]: v };
     return { ...prev, ingredientes: ing };
   });
-  const addIng = () => setForm(prev => ({ ...prev, ingredientes: [...prev.ingredientes, { abate: true, produtoId: '', quantidade: '' }] }));
+  const addIng = () => setForm(prev => ({ ...prev, ingredientes: [...prev.ingredientes, { abate: false, produtoId: '', quantidade: '', nome: '', unidade: 'kg' }] }));
   const removeIng = (i) => setForm(prev => ({ ...prev, ingredientes: prev.ingredientes.filter((_, x) => x !== i) }));
   const unid = (id) => produtos.find(p => p.id === id)?.unidade || '';
 
@@ -275,7 +316,7 @@ function ModalProducao({ receita, produtos, onSalvar, onFechar }) {
     rendimentoBase: parseFloat(form.rendimentoBase) || 0,
     ingredientes: form.ingredientes.filter(ingValido).map(i => i.abate
       ? { abate: true, produtoId: i.produtoId, quantidade: parseFloat(i.quantidade) }
-      : { abate: false, nome: (i.nome || '').trim(), unidade: (i.unidade || '').trim(), quantidade: parseFloat(i.quantidade) }),
+      : { abate: false, nome: (i.nome || '').trim(), unidade: (i.unidade || 'kg').trim(), quantidade: parseFloat(i.quantidade) }),
   });
 
   return (
@@ -316,43 +357,48 @@ function ModalProducao({ receita, produtos, onSalvar, onFechar }) {
           </div>
         </div>
         <div>
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-2">
             <label className="text-xs font-semibold text-gray-600">Ingredientes (para o rendimento acima)</label>
             <button onClick={addIng} className="text-xs font-bold text-polo-navy bg-gray-100 px-2 py-1 rounded">+ Ingrediente</button>
           </div>
           <p className="text-[11px] text-gray-500 mb-2">
-            <strong>Abater do estoque</strong> = item controlado (frios/proteínas), dá baixa de verdade.
-            <strong> Só monitorar</strong> = item do estoque seco, só registra o uso (sem baixa).
+            Por padrão, ingredientes são <strong>monitorados</strong> (só registra uso, sem baixa no estoque). Marque ☑️ se o item é controlado no estoque.
           </p>
           <div className="space-y-2">
             {form.ingredientes.map((ing, i) => (
-              <div key={i} className="border border-gray-100 rounded-lg p-2 space-y-2">
-                <div className="flex gap-2 items-center">
-                  <select value={ing.abate ? 'sim' : 'nao'} onChange={e => setIng(i, 'abate', e.target.value === 'sim')}
-                    className="border border-gray-200 rounded-lg px-2 py-2 text-xs bg-white">
-                    <option value="sim">Abater estoque</option>
-                    <option value="nao">Só monitorar</option>
-                  </select>
-                  <input type="number" min="0" step="0.1" value={ing.quantidade} onChange={e => setIng(i, 'quantidade', e.target.value)}
-                    placeholder="Qtd" className="w-16 border border-gray-200 rounded-lg px-2 py-2 text-sm" />
-                  <span className="text-xs text-gray-400 flex-1">{ing.abate ? unid(ing.produtoId) : (ing.unidade || 'un')}</span>
-                  <button onClick={() => removeIng(i)} aria-label="Remover ingrediente"
-                    className="text-red-400 font-bold text-lg w-6 flex-shrink-0">×</button>
-                </div>
-                {ing.abate ? (
-                  <select value={ing.produtoId || ''} onChange={e => setIng(i, 'produtoId', e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white">
-                    <option value="">Escolha o produto controlado…</option>
-                    {ativos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                  </select>
-                ) : (
-                  <div className="flex gap-2">
-                    <input type="text" value={ing.nome || ''} onChange={e => setIng(i, 'nome', e.target.value)}
-                      placeholder="Nome do ingrediente (ex: Tempero)" className="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm" />
-                    <input type="text" value={ing.unidade || ''} onChange={e => setIng(i, 'unidade', e.target.value)}
-                      placeholder="un" className="w-16 border border-gray-200 rounded-lg px-2 py-2 text-sm" />
+              <div key={i} className="border border-gray-100 rounded-lg p-3 space-y-2 bg-gray-50">
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    {ing.abate ? (
+                      <select value={ing.produtoId || ''} onChange={e => setIng(i, 'produtoId', e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white">
+                        <option value="">Escolha o produto controlado…</option>
+                        {ativos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" value={ing.nome || ''} onChange={e => setIng(i, 'nome', e.target.value)}
+                        placeholder="Nome do ingrediente (ex: Tempero, Cebola)" className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm" />
+                    )}
                   </div>
-                )}
+                  <input type="number" min="0" step="0.1" value={ing.quantidade} onChange={e => setIng(i, 'quantidade', e.target.value)}
+                    placeholder="Qtd" className="w-14 border border-gray-200 rounded-lg px-2 py-2 text-sm" />
+                  <select value={ing.unidade || 'kg'} onChange={e => setIng(i, 'unidade', e.target.value)}
+                    className="border border-gray-200 rounded-lg px-2 py-2 text-xs bg-white">
+                    <option value="kg">kg</option>
+                    <option value="g">g</option>
+                    <option value="un">un</option>
+                    <option value="L">L</option>
+                  </select>
+                  <button onClick={() => removeIng(i)} aria-label="Remover ingrediente"
+                    className="text-red-400 font-bold text-lg w-6 flex-shrink-0 flex items-center justify-center">×</button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id={`abate-${i}`} checked={ing.abate || false} onChange={e => setIng(i, 'abate', e.target.checked)}
+                    className="w-4 h-4 cursor-pointer" />
+                  <label htmlFor={`abate-${i}`} className="text-xs text-gray-600 cursor-pointer">
+                    ☑️ Este item tem estoque controlado (dá baixa)
+                  </label>
+                </div>
               </div>
             ))}
           </div>
@@ -373,7 +419,7 @@ export default function Configuracoes() {
           fichas, setFichas, producoes, setProducoes, locais, setLocais, logAudit, prefs, setPref } = useApp();
   const { usuarios, sessao, criarConvite, alterarCargo } = useAuth();
   const { toast, confirm } = useUI();
-  const sugestoes = calcSugestoesMinMax(produtos, saidas);
+  const sugestoes = calcSugestoesMinMax(produtos, saidas, undefined, prefs.diasMin || 3, prefs.diasMax || 6);
 
   // O que falta preencher em cada produto (marcação pedida pelo cliente)
   const pendenciasDoProduto = (p) => {
@@ -396,14 +442,12 @@ export default function Configuracoes() {
     logAudit('adicionou destino de saída', nome);
     toast('Destino adicionado.', 'sucesso');
   };
+  // Inputs de dias de cobertura: string enquanto edita, converte só no onBlur
+  const [diasMinStr, setDiasMinStr] = useState(String(prefs.diasMin || 3));
+  const [diasMaxStr, setDiasMaxStr] = useState(String(prefs.diasMax || 6));
   const [novaCategoria, setNovaCategoria] = useState('');
   const [conviteCargo, setConviteCargo] = useState('cozinha');
   const [conviteGerado, setConviteGerado] = useState(null); // { token, cargo }
-  // Receitas — fichas (gramaturas) e produções unificadas numa aba
-  const [subReceitas, setSubReceitas] = useState('fichas'); // fichas | producoes
-  const [buscaFicha, setBuscaFicha] = useState('');
-  const [editandoFicha, setEditandoFicha] = useState(null);
-  const [criandoFicha, setCriandoFicha] = useState(false);
   const [editandoProducao, setEditandoProducao] = useState(null);
   const [criandoProducao, setCriandoProducao] = useState(false);
 
@@ -553,11 +597,9 @@ export default function Configuracoes() {
             + Produto
           </button>
         ) : secao === 'receitas' ? (
-          <button
-            onClick={() => subReceitas === 'fichas' ? setCriandoFicha(true) : setCriandoProducao(true)}
-            aria-label={subReceitas === 'fichas' ? 'Adicionar gramatura' : 'Adicionar receita de produção'}
+          <button onClick={() => setCriandoProducao(true)} aria-label="Adicionar receita de produção"
             className="bg-polo-gold text-polo-navy text-xs font-bold px-3 py-1.5 rounded-lg">
-            + {subReceitas === 'fichas' ? 'Gramatura' : 'Receita'}
+            + Receita
           </button>
         ) : null
       }
@@ -603,11 +645,18 @@ export default function Configuracoes() {
                 {(p.estoqueInicial > 0) && ` • Inicial ${p.estoqueInicial}`}
                 {(p.min > 0 || p.max > 0) && ` • Mín ${p.min} / Máx ${p.max}`}
               </div>
-              {pendenciasDoProduto(p).length > 0 && (
-                <div className="text-[10px] font-semibold text-amber-600 mt-0.5">
-                  ⚠️ falta: {pendenciasDoProduto(p).join(', ')}
-                </div>
-              )}
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                {p.gramatura > 0 && (
+                  <span className="text-[10px] font-semibold text-polo-navy bg-polo-beige px-1.5 py-0.5 rounded">
+                    🍽️ {p.gramatura}g/porção{p.coccao > 0 ? ` · 🔥−${p.coccao}%` : ''}{p.entradaCozida ? ' · cozido' : ''}
+                  </span>
+                )}
+                {pendenciasDoProduto(p).length > 0 && (
+                  <span className="text-[10px] font-semibold text-amber-600">
+                    ⚠️ falta: {pendenciasDoProduto(p).join(', ')}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-1">
               <button onClick={() => setEditando(p)}
@@ -660,70 +709,14 @@ export default function Configuracoes() {
       </>}
 
       {secao === 'receitas' && <>
-      {/* Subtipo */}
-      <div className="flex bg-white rounded-xl mb-4 p-1 gap-1">
-        <button onClick={() => setSubReceitas('fichas')}
-          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${subReceitas === 'fichas' ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
-          🍽️ Gramaturas
-        </button>
-        <button onClick={() => setSubReceitas('producoes')}
-          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${subReceitas === 'producoes' ? 'bg-polo-navy text-polo-gold' : 'text-gray-500'}`}>
-          🍲 Produções
-        </button>
-      </div>
-
-      {subReceitas === 'fichas' && <>
-        <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy mb-3">
-          Gramatura por preparação. Usadas no <strong>Planejar</strong> (dentro de Compras) para calcular o bruto a comprar por porção.
-        </div>
-        <div className="mb-3">
-          <input type="text" value={buscaFicha} onChange={e => setBuscaFicha(e.target.value)}
-            placeholder="Buscar matéria-prima ou preparação..."
-            aria-label="Buscar gramatura"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm" />
-        </div>
-        <div className="space-y-3 mb-4">
-          {Object.entries(
-            fichas
-              .filter(f => !buscaFicha || f.materiaPrima.toLowerCase().includes(buscaFicha.toLowerCase()) || f.preparacao.toLowerCase().includes(buscaFicha.toLowerCase()))
-              .reduce((m, f) => { (m[f.materiaPrima] = m[f.materiaPrima] || []).push(f); return m; }, {})
-          ).sort(([a], [b]) => a.localeCompare(b)).map(([mp, lista]) => (
-            <div key={mp} className="bg-white rounded-xl overflow-hidden">
-              <div className="bg-polo-beige px-4 py-2 text-xs font-bold text-polo-navy uppercase tracking-wide">{mp}</div>
-              {lista.map((f, i) => (
-                <div key={f.id} className={`flex items-center px-4 py-2.5 gap-3 ${i < lista.length - 1 ? 'border-b border-gray-50' : ''}`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-gray-800 truncate">{f.preparacao}</div>
-                    {(parseFloat(f.coccao) || 0) > 0 && (
-                      <div className="text-[10px] text-orange-600">🔥 cocção −{f.coccao}%</div>
-                    )}
-                  </div>
-                  <span className="text-sm font-bold text-polo-navy flex-shrink-0">{f.gramatura} g</span>
-                  <button onClick={() => setEditandoFicha(f)} aria-label={`Editar gramatura ${f.preparacao}`}
-                    className="text-xs text-polo-navy font-semibold px-2 py-1 rounded bg-gray-100 flex-shrink-0">Editar</button>
-                  <button onClick={async () => {
-                      const ok = await confirm({ titulo: 'Excluir gramatura', mensagem: `Excluir "${f.preparacao}"?`, perigo: true, confirmar: 'Excluir' });
-                      if (ok) { setFichas(fichas.filter(x => x.id !== f.id)); logAudit('excluiu ficha', f.preparacao); toast('Gramatura excluída.', 'sucesso'); }
-                    }} aria-label={`Excluir gramatura ${f.preparacao}`}
-                    className="text-xs text-red-400 font-semibold px-2 py-1 rounded bg-red-50 flex-shrink-0">×</button>
-                </div>
-              ))}
-            </div>
-          ))}
-          {fichas.filter(f => !buscaFicha || f.materiaPrima.toLowerCase().includes(buscaFicha.toLowerCase()) || f.preparacao.toLowerCase().includes(buscaFicha.toLowerCase())).length === 0 && (
-            <div className="bg-white rounded-xl p-6 text-center text-sm text-gray-500">Nenhuma gramatura encontrada.</div>
-          )}
-        </div>
-      </>}
-
-      {subReceitas === 'producoes' && <>
         <div className="bg-polo-beige border border-polo-gold/40 rounded-xl p-3 text-xs text-polo-navy mb-3">
           Receitas de itens <strong>produzidos</strong> (molhos, caldos, refogados): vários ingredientes viram 1 produto com rendimento. A equipe executa em <strong>Registrar → Produção</strong>.
+          <br />Gramatura por porção é configurada diretamente em cada <strong>📦 Produto</strong>.
         </div>
         <div className="space-y-3 mb-4">
           {producoes.length === 0 && (
             <div className="bg-white rounded-xl p-6 text-center text-sm text-gray-500">
-              Nenhuma receita ainda. Crie a primeira (ex.: "Molho da casa").
+              Nenhuma receita ainda. Crie a primeira com "+ Receita" acima.
             </div>
           )}
           {producoes.map(r => {
@@ -752,7 +745,6 @@ export default function Configuracoes() {
           })}
         </div>
       </>}
-      </>}
 
       {secao === 'sistema' && <>
       {/* Minha conta */}
@@ -768,13 +760,13 @@ export default function Configuracoes() {
       </div>
 
       {/* Ajuste automático de mín/máx */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
-        <div className="flex items-center gap-3">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 space-y-3">
+        <div className="flex items-start gap-3">
           <div className="flex-1">
             <p className="text-sm font-bold text-polo-navy">🤖 Ajuste automático de Mín/Máx</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              O sistema recalcula sozinho o estoque mínimo ({DIAS_MIN} dias de consumo) e máximo ({DIAS_MAX} dias)
-              de cada produto pela média de saídas dos últimos 15 dias. Desligado, ele apenas sugere e você aprova.
+              Recalcula mín/máx de cada produto pela média de saídas dos últimos 15 dias.
+              Desligado, apenas sugere e você aprova.
             </p>
           </div>
           <button
@@ -787,6 +779,44 @@ export default function Configuracoes() {
             className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${prefs.autoMinMax ? 'bg-green-500' : 'bg-gray-300'}`}>
             <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${prefs.autoMinMax ? 'left-6' : 'left-0.5'}`} />
           </button>
+        </div>
+        <div className="border-t border-gray-100 pt-3">
+          <p className="text-xs font-semibold text-gray-600 mb-2">Dias de cobertura do estoque</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Mínimo (alerta abaixo de)</label>
+              <div className="flex items-center gap-1.5">
+                <input type="number" min="1" max="30"
+                  value={diasMinStr}
+                  onChange={e => setDiasMinStr(e.target.value)}
+                  onBlur={e => {
+                    const v = Math.max(1, parseInt(e.target.value) || 3);
+                    setDiasMinStr(String(v));
+                    setPref('diasMin', v);
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <span className="text-xs text-gray-500 whitespace-nowrap">dias</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Máximo (meta de compra)</label>
+              <div className="flex items-center gap-1.5">
+                <input type="number" min="1" max="90"
+                  value={diasMaxStr}
+                  onChange={e => setDiasMaxStr(e.target.value)}
+                  onBlur={e => {
+                    const v = Math.max(1, parseInt(e.target.value) || 6);
+                    setDiasMaxStr(String(v));
+                    setPref('diasMax', v);
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <span className="text-xs text-gray-500 whitespace-nowrap">dias</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-2">
+            Ex: mín 3 dias → com esse estoque a cozinha trabalha por 3 dias sem repor. Máx 6 dias → meta de compra para 6 dias de produção.
+          </p>
         </div>
       </div>
 
@@ -1023,35 +1053,13 @@ export default function Configuracoes() {
           produto={editando}
           sugestao={editando ? sugestoes[editando.id] : null}
           categorias={categorias}
+          diasMin={prefs.diasMin || 3}
+          diasMax={prefs.diasMax || 6}
           onSalvar={handleSalvar}
           onFechar={() => { setEditando(null); setCriando(false); }}
         />
       )}
 
-      {(editandoFicha || criandoFicha) && (
-        <ModalFicha
-          ficha={editandoFicha}
-          fichas={fichas}
-          categorias={categorias}
-          onSalvar={(form) => {
-            // normaliza para a grafia da matéria-prima já existente (evita grupos duplicados)
-            const existente = fichas.find(f => f.materiaPrima.toLowerCase() === form.materiaPrima.trim().toLowerCase());
-            form = { ...form, materiaPrima: existente ? existente.materiaPrima : form.materiaPrima.trim() };
-            if (editandoFicha) {
-              setFichas(fichas.map(f => f.id === editandoFicha.id ? { ...f, ...form } : f));
-              logAudit('editou ficha', form.preparacao);
-              toast('Ficha atualizada.', 'sucesso');
-            } else {
-              setFichas([...fichas, { ...form, id: `ficha_${Date.now()}` }]);
-              logAudit('criou ficha', form.preparacao);
-              toast('Ficha criada.', 'sucesso');
-            }
-            setEditandoFicha(null);
-            setCriandoFicha(false);
-          }}
-          onFechar={() => { setEditandoFicha(null); setCriandoFicha(false); }}
-        />
-      )}
 
       {(editandoProducao || criandoProducao) && (
         <ModalProducao

@@ -24,7 +24,7 @@ const arredondar = (v, unidade) =>
  * Retorna { [produtoId]: { min, max, mediaDiaria, dias } } apenas para
  * produtos com saídas registradas e histórico suficiente.
  */
-export function calcSugestoesMinMax(produtos, saidas, ref = hoje()) {
+export function calcSugestoesMinMax(produtos, saidas, ref = hoje(), diasMin = DIAS_MIN, diasMax = DIAS_MAX) {
   if (!saidas.length) return {};
 
   const primeira = saidas.reduce((m, s) => (s.data < m ? s.data : m), saidas[0].data);
@@ -50,8 +50,8 @@ export function calcSugestoesMinMax(produtos, saidas, ref = hoje()) {
     sug[p.id] = {
       mediaDiaria: media,
       dias: diasObservados,
-      min: arredondar(media * DIAS_MIN, p.unidade),
-      max: arredondar(media * DIAS_MAX, p.unidade),
+      min: arredondar(media * diasMin, p.unidade),
+      max: arredondar(media * diasMax, p.unidade),
     };
   });
   return sug;

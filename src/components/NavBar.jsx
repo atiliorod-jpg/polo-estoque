@@ -5,20 +5,26 @@ import { statusEstoque } from '../utils/calculos';
 import Icon from './Icons';
 
 const NAV = [
-  { to: '/',             icon: 'inicio',    label: 'Início' },
-  { to: '/registrar',    icon: 'registrar', label: 'Registrar' },
-  { to: '/historico',    icon: 'historico', label: 'Histórico' },
-  { to: '/relatorio',    icon: 'relatorio', label: 'Relatório', cargo: 'gerencia' },
-  { to: '/configuracoes',icon: 'config',    label: 'Config.', cargo: 'gerencia' },
+  { to: '/',              icon: 'inicio',    label: 'Início' },
+  { to: '/producao',      icon: 'producao',  label: 'Produção' },
+  { to: '/registrar',     icon: 'registrar', label: 'Registrar' },
+  { to: '/historico',     icon: 'historico', label: 'Histórico' },
+  { to: '/relatorio',     icon: 'relatorio', label: 'Relatório', cargo: 'gerencia' },
+  { to: '/configuracoes', icon: 'config',    label: 'Config.',   cargo: 'gerencia' },
 ];
 
 export default function NavBar() {
-  const { produtos, calcEstoque } = useApp();
+  const { produtos, calcEstoque, producoes } = useApp();
   const { temPermissao } = useAuth();
   const estoque = calcEstoque();
   const alertas = produtos.filter(p => {
     const s = statusEstoque(estoque[p.id] ?? 0, p.min, p.max);
     return s === 'critico' || s === 'zerado';
+  }).length;
+  // badge de produção: receitas cujo produto final está abaixo do mínimo
+  const precisaProduzir = producoes.filter(r => {
+    const p = produtos.find(x => x.id === r.produtoFinalId);
+    return p?.ativo && p.min > 0 && (estoque[p.id] ?? 0) < p.min;
   }).length;
 
   const itens = NAV.filter(n => !n.cargo || temPermissao(n.cargo));
@@ -49,6 +55,12 @@ export default function NavBar() {
                   <span aria-label={`${alertas} produtos abaixo do mínimo`}
                     className="absolute top-0.5 right-1/4 bg-red-500 text-white text-[9px] rounded-full min-w-4 h-4 px-0.5 flex items-center justify-center font-bold ring-2 ring-polo-navy">
                     {alertas > 9 ? '9+' : alertas}
+                  </span>
+                )}
+                {to === '/producao' && precisaProduzir > 0 && (
+                  <span aria-label={`${precisaProduzir} receita(s) precisam ser produzidas`}
+                    className="absolute top-0.5 right-1/4 bg-amber-500 text-white text-[9px] rounded-full min-w-4 h-4 px-0.5 flex items-center justify-center font-bold ring-2 ring-polo-navy">
+                    {precisaProduzir > 9 ? '9+' : precisaProduzir}
                   </span>
                 )}
               </>

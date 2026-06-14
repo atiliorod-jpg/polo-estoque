@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Layout from '../components/Layout';
 import { useApp } from '../store/AppContext';
 import { useUI } from '../store/UIContext';
@@ -25,7 +25,7 @@ export default function Saidas() {
 
   const produtosAtivos = produtos.filter(p => p.ativo);
   const estoque = calcEstoque();
-  const lotes = calcLotes(entradas, saidas, desperdicio);
+  const lotes = useMemo(() => calcLotes(entradas, saidas, desperdicio), [entradas, saidas, desperdicio]);
   const buscando = busca.trim().length > 0;
   const produtosVisiveis = buscando
     ? produtosAtivos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()))
@@ -57,6 +57,10 @@ export default function Saidas() {
   const handleSalvar = async () => {
     if (!itensPreenchidos.length) {
       toast('Adicione pelo menos um produto com quantidade.', 'aviso');
+      return;
+    }
+    if (!destino) {
+      toast('Selecione um destino antes de registrar.', 'aviso');
       return;
     }
     const v = validarDataRegistro(data);

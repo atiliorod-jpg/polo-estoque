@@ -40,20 +40,50 @@ export function previsaoRuptura(produtos, estoque, medias) {
 /**
  * Lista de compras automática: produtos abaixo do mínimo, com a quantidade
  * sugerida para voltar ao máximo (ou ao mínimo, quando não há máximo).
+ * Quando compras/aparas/desperdicio são fornecidos, calcula o fator de correção
+ * histórico e o kg bruto real a comprar.
+ * brutoKg = líquido / (1-FC) / (1-coccão), onde coccão só se aplica quando
+ * entradaCozida=true (produto entra no estoque já cozido, ex.: cupim, carne de sol).
  */
-export function listaDeCompras(produtos, estoque) {
+export function listaDeCompras(produtos, estoque, compras = [], aparas = [], desperdicio = []) {
   return produtos
     .filter(p => p.ativo && p.min > 0 && (estoque[p.id] ?? 0) < p.min)
     .map(p => {
       const atual = estoque[p.id] ?? 0;
       const alvo = p.max > p.min ? p.max : p.min;
-      const bruto = Math.max(alvo - atual, 0);
-      const sugerido = p.unidade === 'unid' ? Math.ceil(bruto) : Math.ceil(bruto * 2) / 2;
-      // produtos em unidade com peso cadastrado ganham o equivalente em kg para o pedido
-      const kg = p.unidade === 'unid' && p.pesoUnidade > 0
-        ? Math.round(sugerido * p.pesoUnidade / 100) / 10
+      const liquido = Math.max(alvo - atual, 0);
+      const sugerido = p.unidade === 'unid' ? Math.ceil(liquido) : Math.ceil(liquido * 2) / 2;
+
+      // kg líquido equivalente (necessário para calcular bruto)
+      const liquidoKg = p.unidade === 'kg'  ? sugerido
+        : p.unidade === 'unid' && p.pesoUnidade > 0 ? Math.round(sugerido * p.pesoUnidade / 100) / 10
         : null;
-      return { p, atual, sugerido, kg };
+
+      // FC histórico (aparas + perdas associadas a compras deste produto por nome)
+      const fc = fatorCorrecaoItem(p.nome, compras, aparas, desperdicio);
+      // Cocção só entra na compra quando o produto JÁ ENTRA NO ESTOQUE COZIDO
+      // (cupim porcionado, carne de sol desfiada etc.) — o cozimento acontece ANTES de entrar no estoque.
+      const coccaoFator = p.entradaCozida && p.coccao > 0 ? p.coccao / 100 : 0;
+      // kg bruto = líquido / (1 - FC) / (1 - coccão)
+      const brutoKg = liquidoKg != null
+        ? Math.ceil(liquidoKg / (1 - (fc || 0)) / (1 - coccaoFator) * 10) / 10
+        : null;
+
+      // Último fornecedor que vendeu este produto
+      // Usa mínimo de 4 chars para evitar falsos positivos por substring curta (ex: "Pei" em "Peito de Frango")
+      const nomeMin = p.nome.toLowerCase();
+      const ultimaCompra = [...compras]
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+        .find(c => {
+          const item = (c.item || '').toLowerCase().trim();
+          if (!item) return false;
+          if (item === nomeMin) return true;
+          const shorter = item.length <= nomeMin.length ? item : nomeMin;
+          if (shorter.length < 4) return false;
+          return item.includes(nomeMin) || nomeMin.includes(item);
+        });
+
+      return { p, atual, sugerido, liquidoKg, brutoKg, fc, fornecedor: ultimaCompra?.fornecedor || null };
     })
     .sort((a, b) => (a.atual / a.p.min) - (b.atual / b.p.min)); // mais crítico primeiro
 }

@@ -12,7 +12,7 @@ import { fmtNum, fmtData, hoje } from '../utils/formatters';
 import CalculadoraProducao from '../components/CalculadoraProducao';
 
 export default function Dashboard() {
-  const { produtos, setProdutos, saidas, entradas, desperdicio, calcEstoque, categorias, listaManual, prefs } = useApp();
+  const { produtos, setProdutos, saidas, entradas, desperdicio, compras, aparas, producoes, calcEstoque, categorias, listaManual, prefs } = useApp();
   const { toast } = useUI();
   const navigate = useNavigate();
   const [catAtiva, setCatAtiva] = useState('TODOS');
@@ -22,7 +22,7 @@ export default function Dashboard() {
   const dataHoje = hoje();
 
   // Sugestões de mín/máx pela média de saídas (escondidas se o modo automático estiver ligado)
-  const sugestoes = useMemo(() => calcSugestoesMinMax(produtos, saidas), [produtos, saidas]);
+  const sugestoes = useMemo(() => calcSugestoesMinMax(produtos, saidas, undefined, prefs.diasMin || 3, prefs.diasMax || 6), [produtos, saidas, prefs.diasMin, prefs.diasMax]);
   const divergentes = useMemo(
     () => (prefs.autoMinMax ? [] : produtosDivergentes(produtos, sugestoes)),
     [produtos, sugestoes, prefs.autoMinMax]
@@ -48,7 +48,22 @@ export default function Dashboard() {
     () => previsaoRuptura(produtos, estoque, medias).filter(x => x.dias <= 3),
     [produtos, estoque, medias]
   );
-  const lista = useMemo(() => listaDeCompras(produtos, estoque), [produtos, estoque]);
+  const lista = useMemo(() => listaDeCompras(produtos, estoque, compras, aparas, desperdicio), [produtos, estoque, compras, aparas, desperdicio]);
+
+  // Receitas cujo produto final está abaixo do mínimo → mostrar "Produzir hoje"
+  const produzirHoje = useMemo(() => producoes
+    .map(r => {
+      const produto = produtos.find(p => p.id === r.produtoFinalId);
+      if (!produto?.ativo) return null;
+      const atual = estoque[r.produtoFinalId] ?? 0;
+      if (produto.min > 0 && atual >= produto.min) return null;
+      return { receita: r, produto, atual };
+    })
+    .filter(Boolean),
+  [producoes, produtos, estoque]);
+
+  // IDs de produtos que são resultado de uma receita de produção
+  const produtoFinalIds = useMemo(() => new Set(producoes.map(r => r.produtoFinalId)), [producoes]);
 
   const aplicarSugestao = (ids) => {
     const next = produtos.map(p => {
@@ -112,6 +127,31 @@ export default function Dashboard() {
           </span>
           <span className="text-polo-gold text-lg">›</span>
         </button>
+      )}
+
+      {/* Produzir hoje — receitas com produto final abaixo do mínimo */}
+      {produzirHoje.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs font-bold text-polo-navy uppercase tracking-wide mb-2">🍲 Produzir hoje</p>
+          <div className="space-y-2">
+            {produzirHoje.map(({ receita, produto, atual }) => (
+              <button key={receita.id}
+                onClick={() => navigate(`/producao?r=${receita.id}`)}
+                className="w-full bg-white rounded-xl p-3 flex items-center justify-between border border-polo-gold/40 active:scale-[0.99] transition-transform text-left">
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm text-polo-navy truncate">{produto?.nome || receita.nome}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    Estoque: <span className={`font-semibold ${atual <= 0 ? 'text-red-600' : 'text-orange-600'}`}>{fmtNum(atual)} {produto?.unidade}</span>
+                    {produto?.min > 0 && <> · mín {produto.min} {produto?.unidade}</>}
+                  </div>
+                </div>
+                <span className="flex-shrink-0 ml-3 bg-polo-navy text-polo-gold font-bold text-xs px-3 py-2 rounded-lg">
+                  Produzir →
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Previsão de ruptura — ritmo atual de consumo */}
@@ -224,10 +264,15 @@ export default function Dashboard() {
                     onClick={() => lotesProduto.length && setExpandido(aberto ? null : p.id)}
                     className={`${cor.bg} rounded-xl p-3 mb-2 border border-white/60 ${lotesProduto.length ? 'cursor-pointer active:scale-[0.995] transition-transform' : ''}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-semibold text-sm text-gray-800">
+                      <span className="font-semibold text-sm text-gray-800 flex items-center gap-1 flex-wrap">
                         {p.nome}
+                        {produtoFinalIds.has(p.id) && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                            🍲 produzido
+                          </span>
+                        )}
                         {lotesProduto.length > 0 && (
-                          <span className="ml-1.5 text-[10px] font-bold text-polo-navy bg-white/70 px-1.5 py-0.5 rounded-full">
+                          <span className="text-[10px] font-bold text-polo-navy bg-white/70 px-1.5 py-0.5 rounded-full">
                             🏷️ {lotesProduto.length} lote{lotesProduto.length > 1 ? 's' : ''} {aberto ? '▾' : '▸'}
                           </span>
                         )}
@@ -260,10 +305,10 @@ export default function Dashboard() {
                     )}
                     {aberto && lotesProduto.length > 0 && (
                       <div className="mt-2 bg-white/70 rounded-lg p-2 space-y-1">
-                        {lotesProduto.map((l, i) => {
+                        {lotesProduto.map((l) => {
                           const dias = diasAte(l.validade);
                           return (
-                            <div key={i} className="flex justify-between items-center text-xs">
+                            <div key={`${l.validade}_${l.dataEntrada}`} className="flex justify-between items-center text-xs">
                               <span className="text-gray-600">
                                 {l.armazenamento === 'resfriado' ? '🧊' : '❄️'} {fmtNum(l.restante)} {p.unidade}
                                 <span className="text-gray-500"> • entrou {fmtData(l.dataEntrada)}</span>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Layout from '../components/Layout';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../store/AppContext';
 import { useAuth } from '../store/AuthContext';
 import { useUI } from '../store/UIContext';
@@ -16,24 +16,30 @@ export default function Producao() {
 
   const [data, setData] = useState(hoje());
   const [responsavel, setResponsavel] = useState(prefs.responsavel || '');
-  const [receitaId, setReceitaId] = useState(producoes[0]?.id || '');
-  const [alvo, setAlvo] = useState('');
+  const [produtoId, setProdutoId] = useState(() => {
+    const prodComReceita = produtos.find(p => p.ativo && producoes.some(r => r.produtoFinalId === p.id));
+    return prodComReceita?.id || '';
+  });
+  const [quantidade, setQuantidade] = useState('');
   const [armazenamento, setArmazenamento] = useState('congelado');
   const [obs, setObs] = useState('');
+  const [mostraIngredientes, setMostraIngredientes] = useState(false);
 
   const estoque = calcEstoque();
   const prodNome = (id) => produtos.find(p => p.id === id)?.nome || id;
   const prodUnid = (id) => produtos.find(p => p.id === id)?.unidade || '';
 
-  const receita = producoes.find(r => r.id === receitaId);
-  const finalId = receita?.produtoFinalId;
-  const alvoNum = parseFloat(alvo) || 0;
-  const plano = receita ? planejarProducao(receita, alvoNum || receita.rendimentoBase, estoque) : { itens: [], faltaAlgum: false };
+  // Encontra a receita automaticamente para o produto selecionado
+  const receita = produtoId ? producoes.find(r => r.produtoFinalId === produtoId) : null;
+  const produto = produtos.find(p => p.id === produtoId);
+  const quantidadeNum = parseFloat(quantidade) || 0;
+  const plano = receita ? planejarProducao(receita, quantidadeNum || receita.rendimentoBase, estoque) : { itens: [], faltaAlgum: false };
 
   const registrar = () => {
-    const pid = `prc_${Date.now()}`;
-    const qtdFinal = alvoNum || parseFloat(receita.rendimentoBase) || 0;
-    const obsTxt = `Produção: ${receita.nome}${obs ? ` — ${obs}` : ''}`;
+    const pid = `prc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const qtdFinal = quantidadeNum || (receita ? parseFloat(receita.rendimentoBase) : 0);
+    const receitaNome = receita?.nome || prodNome(produtoId);
+    const obsTxt = `Produção: ${receitaNome}${obs ? ` — ${obs}` : ''}`;
     // ingredientes que ABATEM do estoque (frios/proteínas controlados)
     const abateItens = plano.itens.filter(i => i.abate && i.produtoId && i.quantidade > 0)
       .map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade }));
@@ -48,17 +54,17 @@ export default function Producao() {
     addEntrada({
       data, hora: fmtHora(), responsavel, armazenamento, producaoId: pid, obs: obsTxt,
       monitorados,
-      itens: [{ produtoId: finalId, quantidade: qtdFinal }],
+      itens: [{ produtoId, quantidade: qtdFinal }],
     });
     if (responsavel) setPref('responsavel', responsavel);
-    setAlvo(''); setObs('');
-    toast(`Produção registrada: ${fmtNum(qtdFinal)} ${prodUnid(finalId)} de ${prodNome(finalId)}!`, 'sucesso');
+    setQuantidade(''); setObs('');
+    toast(`Produção registrada: ${fmtNum(qtdFinal)} ${prodUnid(produtoId)} de ${prodNome(produtoId)}!`, 'sucesso');
   };
 
   const handleProduzir = async () => {
-    if (!receita) { toast('Escolha uma receita.', 'aviso'); return; }
-    const qtdFinal = alvoNum || parseFloat(receita.rendimentoBase) || 0;
-    if (qtdFinal <= 0) { toast('Informe quanto vai produzir.', 'aviso'); return; }
+    if (!produtoId) { toast('Escolha o produto produzido.', 'aviso'); return; }
+    const qtdFinal = quantidadeNum || (receita ? parseFloat(receita.rendimentoBase) : 0);
+    if (qtdFinal <= 0) { toast('Informe a quantidade produzida.', 'aviso'); return; }
     const v = validarDataRegistro(data);
     if (!v.ok) { toast('Não é possível registrar em data futura.', 'erro'); return; }
     if (v.confirmar) {
@@ -78,16 +84,17 @@ export default function Producao() {
     registrar();
   };
 
-  const semReceitas = producoes.length === 0;
+  const produtosComReceita = produtos.filter(p => p.ativo && producoes.some(r => r.produtoFinalId === p.id));
+  const semProdutos = produtosComReceita.length === 0;
 
   return (
     <Layout title="Produção">
-      {semReceitas ? (
+      {semProdutos ? (
           <div className="bg-white rounded-xl p-6 text-center space-y-2">
             <p className="text-3xl">🍲</p>
             <p className="font-semibold text-polo-navy">Nenhuma receita de produção ainda</p>
             <p className="text-sm text-gray-500">
-              Aqui você produz itens feitos de vários ingredientes (molhos, caldos, refogados…) e o estoque se atualiza sozinho.
+              Aqui você registra a produção de itens feitos na cozinha.
             </p>
             {temPermissao('gerencia')
               ? <Link to="/configuracoes" className="inline-block mt-2 bg-polo-navy text-polo-gold font-bold px-5 py-2.5 rounded-xl text-sm">Criar ficha de produção</Link>
@@ -97,10 +104,11 @@ export default function Producao() {
           <div className="space-y-4">
             <div className="bg-white rounded-xl p-4 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Receita</label>
-                <select value={receitaId} onChange={e => { setReceitaId(e.target.value); const r = producoes.find(x => x.id === e.target.value); if (r?.armazenamento) setArmazenamento(r.armazenamento); }}
+                <label className="block text-xs font-semibold text-gray-600 mb-1">O que você produziu?</label>
+                <select value={produtoId} onChange={e => { setProdutoId(e.target.value); const r = producoes.find(x => x.produtoFinalId === e.target.value); if (r?.armazenamento) setArmazenamento(r.armazenamento); }}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
-                  {producoes.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
+                  <option value="">Escolha um produto…</option>
+                  {produtosComReceita.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -111,9 +119,9 @@ export default function Producao() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    Quanto produzir ({prodUnid(finalId)})
+                    Quantidade ({prodUnid(produtoId)})
                   </label>
-                  <input type="number" min="0" step="0.5" value={alvo} onChange={e => setAlvo(e.target.value)}
+                  <input type="number" min="0" step="0.5" value={quantidade} onChange={e => setQuantidade(e.target.value)}
                     placeholder={receita ? fmtNum(receita.rendimentoBase) : '0'}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 </div>
@@ -133,37 +141,72 @@ export default function Producao() {
               <ResponsavelSelect value={responsavel} onChange={setResponsavel} />
             </div>
 
-            {/* Produz → resultado */}
-            <div className="bg-polo-beige rounded-xl p-4 border border-polo-gold/30">
-              <p className="text-sm font-bold text-polo-navy">
-                Vai produzir: {fmtNum(alvoNum || receita?.rendimentoBase || 0)} {prodUnid(finalId)} de {prodNome(finalId)}
-              </p>
-            </div>
-
-            {/* Ingredientes necessários */}
-            <div className="bg-white rounded-xl overflow-hidden">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide px-4 pt-3">Ingredientes necessários</p>
-              {plano.itens.length === 0 && <p className="text-sm text-gray-400 px-4 py-3">Esta receita não tem ingredientes cadastrados.</p>}
-              {plano.itens.map((i, idx, arr) => (
-                <div key={idx} className={`flex items-center justify-between px-4 py-3 ${idx < arr.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm text-gray-800 truncate">
-                      {i.abate ? prodNome(i.produtoId) : i.nome}
-                      {!i.abate && <span className="ml-1.5 text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">só monitora</span>}
+            {/* Estoque atual + resultado da produção */}
+            {produtoId && (() => {
+              const atualFinal = estoque[produtoId] ?? 0;
+              const minFinal = produto?.min ?? 0;
+              const abaixo = minFinal > 0 && atualFinal < minFinal;
+              const qtdAposProduzir = quantidadeNum || (receita ? parseFloat(receita.rendimentoBase) : 0);
+              return (
+                <div className={`rounded-xl p-3 border ${abaixo ? 'bg-orange-50 border-orange-300' : 'bg-polo-beige border-polo-gold/30'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500">Em estoque agora</p>
+                      <p className={`text-lg font-bold ${abaixo ? 'text-orange-700' : 'text-polo-navy'}`}>
+                        {fmtNum(atualFinal)} {produto?.unidade}
+                      </p>
+                      {minFinal > 0 && (
+                        <p className="text-[11px] text-gray-500">mín {minFinal} {produto?.unidade}</p>
+                      )}
                     </div>
-                    {i.abate ? (
-                      <div className="text-xs text-gray-500">
-                        Em estoque: <span className={i.suficiente ? 'text-gray-600 font-semibold' : 'text-red-500 font-semibold'}>{fmtNum(i.emEstoque)} {prodUnid(i.produtoId)}</span>
-                        {!i.suficiente && <span className="text-red-500 font-semibold"> • falta {fmtNum(i.falta)}</span>}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-400">Estoque seco — não dá baixa</div>
-                    )}
+                    <div className="text-right">
+                      <p className="text-xs font-semibold text-gray-500">Após produzir</p>
+                      <p className="text-lg font-bold text-green-700">
+                        {fmtNum(atualFinal + qtdAposProduzir)} {produto?.unidade}
+                      </p>
+                      <p className="text-[11px] text-gray-500">{prodNome(produtoId)}</p>
+                    </div>
                   </div>
-                  <div className="text-sm font-bold text-polo-navy whitespace-nowrap">{fmtNum(i.quantidade)} {i.abate ? prodUnid(i.produtoId) : (i.unidade || '')}</div>
                 </div>
-              ))}
-            </div>
+              );
+            })()}
+
+            {/* Ingredientes — painel colapsável */}
+            {receita && plano.itens.length > 0 && (
+              <div className="bg-white rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setMostraIngredientes(!mostraIngredientes)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                    📋 Ingredientes {mostraIngredientes ? '▼' : '▶'}
+                  </p>
+                  <span className="text-[11px] text-gray-400">{plano.itens.length} item(ns)</span>
+                </button>
+                {mostraIngredientes && (
+                  <div className="border-t border-gray-100 divide-y divide-gray-100">
+                    {plano.itens.map((i, idx) => (
+                      <div key={idx} className="flex items-center justify-between px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm text-gray-800 truncate">
+                            {i.abate ? prodNome(i.produtoId) : i.nome}
+                            {!i.abate && <span className="ml-1.5 text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">só monitora</span>}
+                          </div>
+                          {i.abate ? (
+                            <div className="text-xs text-gray-500">
+                              Em estoque: <span className={i.suficiente ? 'text-gray-600 font-semibold' : 'text-red-500 font-semibold'}>{fmtNum(i.emEstoque)} {prodUnid(i.produtoId)}</span>
+                              {!i.suficiente && <span className="text-red-500 font-semibold"> • falta {fmtNum(i.falta)}</span>}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-400">Estoque seco — não dá baixa</div>
+                          )}
+                        </div>
+                        <div className="text-sm font-bold text-polo-navy whitespace-nowrap">{fmtNum(i.quantidade)} {i.abate ? prodUnid(i.produtoId) : (i.unidade || '')}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="bg-white rounded-xl p-4">
               <label className="block text-xs font-semibold text-gray-600 mb-1">Observação (opcional)</label>
@@ -199,7 +242,9 @@ export default function Producao() {
               ✓ Registrar Produção
             </button>
             <p className="text-[11px] text-gray-400 text-center -mt-1">
-              Isso dá entrada no produto final e abate os ingredientes do estoque automaticamente.
+              {receita && plano.itens.some(i => i.abate)
+                ? 'Isso dá entrada no produto e abate os ingredientes automaticamente.'
+                : 'Isso registra a produção e atualiza o estoque.'}
             </p>
           </div>
         )

@@ -211,7 +211,8 @@ export default function AparasPerdas() {
               </div>
 
               <button onClick={salvarApara}
-                className="w-full bg-amber-500 text-white font-bold py-4 rounded-xl text-base active:scale-95 transition-transform">
+                disabled={!formApara.item.trim() || !formApara.quantidade || (formApara.destino === 'OUT' && !formApara.destinoOutro.trim())}
+                className="w-full bg-amber-500 text-white font-bold py-4 rounded-xl text-base active:scale-95 transition-transform disabled:opacity-40 disabled:scale-100">
                 ✓ Registrar Apara
               </button>
             </>
@@ -288,7 +289,8 @@ export default function AparasPerdas() {
               </div>
 
               <button onClick={salvarPerda}
-                className="w-full bg-red-600 text-white font-bold py-4 rounded-xl text-base active:scale-95 transition-transform">
+                disabled={!formPerda.item.trim() || !formPerda.quantidade || (formPerda.origem === 'estoque' && !formPerda.produtoId) || (formPerda.motivo === 'O' && !formPerda.motivoOutro.trim())}
+                className="w-full bg-red-600 text-white font-bold py-4 rounded-xl text-base active:scale-95 transition-transform disabled:opacity-40 disabled:scale-100">
                 ✓ Registrar Perda
               </button>
             </>
