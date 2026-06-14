@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/aurum-cozinha-teste/sw.js', { scope: '/aurum-cozinha-teste/' })})}
